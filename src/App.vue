@@ -1,18 +1,87 @@
 <template>
-  <!-- This is where the active route (ConfiguratorView) will render -->
-  <router-view />
+  <div class="app-root">
+    <nav class="top-nav">
+      <div class="nav-inner">
+        <ul class="nav-links">
+          <li><router-link to="/">Configurator</router-link></li>
+          <li><router-link to="/feed">Feed</router-link></li>
+        </ul>
+
+        <button class="logout-btn">Logout</button>
+      </div>
+    </nav>
+
+    <main class="app-shell">
+      <router-view />
+    </main>
+  </div>
 </template>
 
-<script setup>
-// nothing needed here for now
-</script>
-
 <style>
-/* optional: just to prove styling works */
-body {
+.app-root {
+  min-height: 100vh;
+}
+
+.top-nav {
+  background: var(--accent-color);
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.nav-inner {
+  margin: 0 auto;
+  padding: 0.75rem 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nav-links {
+  display: flex;
+  gap: 1rem;
+  list-style: none;
+  padding: 0;
   margin: 0;
-  background: #111;
-  color: #f5f5f5;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.nav-links a {
+  transition:
+    transform 180ms ease-in-out,
+    color 400ms ease-in-out;
+}
+
+.nav-links a:hover {
+  transform: translate(-2px, -1px);
+  text-shadow: 2px 2px 2px var(--orange);
+  color: var(--background-color);
+}
+
+.nav-links a:active {
+  text-shadow: 2px 2px 2px var(--background-color);
+  color: var(--orange);
+}
+
+.logout-btn {
+  border: none;
+  background: var(--text-color);
+  color: var(--background-color);
+  cursor: pointer;
+  font: inherit;
+  transition: transform 180ms ease-in-out;
+}
+
+.logout-btn:hover {
+  background-color: var(--red);
+  transform: scale(1.05);
+}
+
+.logout-btn:active {
+  transform: scale(0.95);
+}
+
+.app-shell {
+  max-width: 960px;
+  margin: 2rem auto;
+  padding-inline: 15px;
 }
 </style>

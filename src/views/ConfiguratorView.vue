@@ -1,3 +1,7 @@
+<script setup>
+import BagPreview from '@/components/BagPreview.vue'
+</script>
+
 <template>
   <div>
     <h1>Configurator</h1>
@@ -5,10 +9,4 @@
   </div>
 </template>
 
-<script setup>
-import BagPreview from '@/components/BagPreview.vue';
-</script>
-
-<style>
-
-</style>
+<style></style>
