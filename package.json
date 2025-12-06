@@ -14,10 +14,12 @@
     "format": "prettier --write --experimental-cli src/"
   },
   "dependencies": {
+    "@ckpack/vue-color": "^1.6.0",
     "pinia": "^3.0.4",
     "three": "^0.181.2",
     "vue": "^3.5.25",
-    "vue-router": "^4.6.3"
+    "vue-router": "^4.6.3",
+    "vue3-colorpicker": "^2.3.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

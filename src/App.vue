@@ -80,8 +80,6 @@
 }
 
 .app-shell {
-  max-width: 960px;
-  margin: 2rem auto;
-  padding-inline: 15px;
+  padding: 0 15px;
 }
 </style>

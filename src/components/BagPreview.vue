@@ -83,7 +83,7 @@ onMounted(() => {
       bag.position.sub(center)
 
       const maxSize = Math.max(size.x, size.y, size.z)
-      const distance = maxSize * 1.8 // 👈 this is the “how far camera stands back”
+      const distance = maxSize * 1.5 // 👈 this is the “how far camera stands back”
 
       camera.position.set(0, maxSize * 0.4, distance)
       camera.near = distance / 100
@@ -156,9 +156,9 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .bag-preview {
-  width: min(30vw, 380px); /* was 40vw / 500px */
-  height: min(50vh, 450px); /* was 60vh / 600px */
-  margin: 0 auto;
+  width: 40vw;
+  height: 80vh;
+  margin: 0;
   border-radius: 8px;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.1);
 }
