@@ -44,8 +44,12 @@ function handleSubmit() {
         <div class="field dual">
           <label>Bag color</label>
           <div class="dual__inputs">
-            <Chrome :pure-color="bag.bagColor" @update:pure-color="bag.bagColor = $event" />
-            <input type="text" v-model="bag.bagColor" placeholder="#ffffff or rgb(...)" />
+            <Chrome v-model="bag.bagColor" />
+            <input
+              type="text"
+              v-model="bag.bagColor"
+              placeholder="#ffffff or rgb(...)"
+            />
           </div>
         </div>
 
@@ -171,8 +175,16 @@ function handleSubmit() {
 
 .dual__inputs {
   display: grid;
-  grid-template-columns: 80px 1fr;
-  gap: 10px;
+  grid-template-columns: minmax(220px, 1fr) 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.dual__inputs :deep(.vc-chrome) {
+  width: 100%;
+  border: 1px solid #d6dbe2;
+  border-radius: 10px;
+  box-shadow: none;
 }
 
 .primary {
@@ -197,6 +209,10 @@ function handleSubmit() {
 
   .preview-panel {
     width: 100%;
+  }
+
+  .dual__inputs {
+    grid-template-columns: 1fr;
   }
 }
 </style>
