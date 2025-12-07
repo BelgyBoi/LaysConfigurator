@@ -1,8 +1,35 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+
+const props = defineProps({
+  color: {
+    type: String,
+    default: '#a0a3a6',
+  },
+  pattern: {
+    type: String,
+    default: '',
+  },
+  packaging: {
+    type: String,
+    default: 'matte',
+  },
+  image: {
+    type: String,
+    default: '',
+  },
+  name: {
+    type: String,
+    default: '',
+  },
+  font: {
+    type: String,
+    default: '',
+  },
+})
 
 // DOM ref to the container div
 const canvasContainer = ref(null)
@@ -13,6 +40,9 @@ let camera
 let renderer
 let controls
 let animationId
+const bagMaterials = []
+let bagTexture = null
+let updateToken = 0
 
 // we need this reference so we can remove the listener later
 function onWindowResize() {
@@ -75,6 +105,7 @@ onMounted(() => {
     (gltf) => {
       const bag = gltf.scene
 
+
       // --- auto-center & frame the bag ---
       const box = new THREE.Box3().setFromObject(bag)
       const size = box.getSize(new THREE.Vector3())
@@ -98,13 +129,18 @@ onMounted(() => {
       // --- override all materials to flat gray ---
       bag.traverse((child) => {
         if (child.isMesh) {
-          child.material = new THREE.MeshStandardMaterial({
-            color: 0xa0a3a6, // gray
+          const material = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
             metalness: 0.1,
             roughness: 0.6,
+            map: null,
           })
+          child.material = material
+          bagMaterials.push(material)
         }
       })
+
+      updateBagAppearance()
 
       scene.add(bag)
 
@@ -133,6 +169,13 @@ onBeforeUnmount(() => {
   if (animationId) cancelAnimationFrame(animationId)
   window.removeEventListener('resize', onWindowResize)
 
+  bagMaterials.forEach((material) => material.dispose())
+  bagMaterials.length = 0
+  if (bagTexture) {
+    bagTexture.dispose()
+    bagTexture = null
+  }
+
   if (controls) {
     controls.dispose()
     controls = null
@@ -147,6 +190,169 @@ onBeforeUnmount(() => {
   scene = null
   camera = null
 })
+
+function normalizeColor(value) {
+  if (typeof value === 'string' && value.trim()) return value
+  return '#a0a3a6'
+}
+
+function applyPackaging(material, packaging) {
+  const mode = packaging || 'matte'
+  switch (mode) {
+    case 'glossy':
+      material.metalness = 0.35
+      material.roughness = 0.2
+      break
+    case 'recyclable':
+      material.metalness = 0.12
+      material.roughness = 0.5
+      break
+    case 'matte':
+    default:
+      material.metalness = 0.08
+      material.roughness = 0.7
+      break
+  }
+}
+
+function drawPattern(ctx, pattern, width, height) {
+  if (!pattern) return
+  ctx.save()
+  ctx.globalAlpha = 0.12
+  ctx.fillStyle = '#ffffff'
+
+  if (pattern === 'stripes') {
+    ctx.translate(0, 0)
+    ctx.rotate((-10 * Math.PI) / 180)
+    const stripeWidth = 30
+    for (let x = -width; x < width * 2; x += stripeWidth * 2) {
+      ctx.fillRect(x, -height, stripeWidth, height * 3)
+    }
+  } else if (pattern === 'dots') {
+    const radius = 10
+    const gap = 50
+    for (let y = 0; y < height + gap; y += gap) {
+      for (let x = 0; x < width + gap; x += gap) {
+        ctx.beginPath()
+        ctx.arc(x + (y % (gap * 2) === 0 ? 0 : radius), y, radius, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    }
+  } else if (pattern === 'waves') {
+    ctx.strokeStyle = '#ffffff'
+    ctx.lineWidth = 12
+    const amplitude = 20
+    const wavelength = 160
+    for (let y = 80; y < height + 80; y += 80) {
+      ctx.beginPath()
+      for (let x = 0; x <= width; x += 10) {
+        const yOffset = Math.sin((x / wavelength) * Math.PI * 2) * amplitude
+        ctx.lineTo(x, y + yOffset)
+      }
+      ctx.stroke()
+    }
+  }
+  ctx.restore()
+}
+
+function getFontStack(fontKey) {
+  switch (fontKey) {
+    case 'serif':
+      return '700 68px "Times New Roman", Georgia, serif'
+    case 'sans':
+      return '700 64px "Helvetica Neue", Arial, sans-serif'
+    case 'script':
+      return '700 68px "Pacifico", "Brush Script MT", cursive'
+    default:
+      return '700 64px "Helvetica Neue", Arial, sans-serif'
+  }
+}
+
+function drawLabel(ctx, text, fontKey, width, height) {
+  if (!text) return
+  ctx.save()
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.font = getFontStack(fontKey)
+  ctx.shadowColor = 'rgba(255, 255, 255, 0.4)'
+  ctx.shadowBlur = 12
+  ctx.fillText(text, width / 2, height * 0.2)
+  ctx.restore()
+}
+
+function loadImageElement(src) {
+  return new Promise((resolve) => {
+    if (!src) {
+      resolve(null)
+      return
+    }
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => resolve(img)
+    img.onerror = () => resolve(null)
+    img.src = src
+  })
+}
+
+async function updateBagAppearance() {
+  const token = ++updateToken
+  if (!bagMaterials.length) return
+
+  const width = 1024
+  const height = 1024
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
+  ctx.fillStyle = normalizeColor(props.color)
+  ctx.fillRect(0, 0, width, height)
+
+  drawPattern(ctx, props.pattern, width, height)
+  drawLabel(ctx, props.name, props.font, width, height)
+
+  const imageEl = await loadImageElement(props.image)
+  if (token !== updateToken) return
+  if (imageEl) {
+    const maxW = width * 0.6
+    const maxH = height * 0.5
+    const scale = Math.min(maxW / imageEl.width, maxH / imageEl.height, 1)
+    const drawW = imageEl.width * scale
+    const drawH = imageEl.height * scale
+    const dx = (width - drawW) / 2
+    const dy = height * 0.55 - drawH / 2
+    ctx.drawImage(imageEl, dx, dy, drawW, drawH)
+  }
+
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.wrapS = THREE.ClampToEdgeWrapping
+  texture.wrapT = THREE.ClampToEdgeWrapping
+  texture.anisotropy = renderer?.capabilities?.getMaxAnisotropy
+    ? renderer.capabilities.getMaxAnisotropy()
+    : 1
+
+  const previousTexture = bagTexture
+  bagTexture = texture
+
+  bagMaterials.forEach((material) => {
+    material.map = texture
+    material.color.set('#ffffff')
+    applyPackaging(material, props.packaging)
+    material.needsUpdate = true
+  })
+
+  if (previousTexture && previousTexture !== texture) {
+    previousTexture.dispose()
+  }
+}
+
+watch(
+  () => [props.color, props.pattern, props.packaging, props.image, props.name, props.font],
+  () => updateBagAppearance(),
+  { immediate: true },
+)
 </script>
 
 <template>
