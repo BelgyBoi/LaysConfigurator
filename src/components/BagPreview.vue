@@ -216,7 +216,7 @@ function applyPackaging(material, packaging) {
       break
     case 'matte':
     default:
-      material.metalness = 0.08
+      material.metalness = 0.1
       material.roughness = 0.7
       break
   }
@@ -287,7 +287,6 @@ function drawLabel(ctx, text, fontKey, width, height, pos) {
   ctx.fillText(text, width * (pos?.x ?? 0.5), height * (pos?.y ?? 0.2))
   ctx.restore()
 }
-
 
 function loadImageElement(src) {
   return new Promise((resolve) => {
@@ -379,4 +378,9 @@ watch(
   border-radius: 8px;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.1);
 }
+
+.swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+.swatch { width: 32px; height: 32px; border-radius: 8px; border: 2px solid #d6dbe2; cursor: pointer; }
+.swatch.active { border-color: #333; box-shadow: 0 0 0 2px rgba(0,0,0,0.08); }
+
 </style>

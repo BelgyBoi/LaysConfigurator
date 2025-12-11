@@ -2,7 +2,6 @@
 import { reactive, ref } from 'vue'
 import BagPreview from '@/components/BagPreview.vue'
 
-
 const bag = reactive({
   name: '',
   imageName: '',
@@ -16,6 +15,10 @@ const bag = reactive({
   keyFlavoursText: '',
   keyFlavours: [],
 })
+
+const presetColors = [
+  "#f8e503", "#ec2e2e", "#f79324", "#0dab4e", "#05a8df", "#f2a007", "#4b5563", "#7f52ff"
+]
 
 const isColorPickerOpen = ref(false)
 const tempColor = ref(bag.bagColor)
@@ -111,17 +114,20 @@ function clearImage() {
           <input type="text" v-model="bag.name" />
         </div>
 
-        <div class="field dual">
+        <div class="field">
           <label>Bag color</label>
-          <div>
-            <input
-              class="color-bar__value"
-              type="text"
-              v-model="bag.bagColor"
-              placeholder="#ffffff"
+          <div class="swatches">
+            <button
+              v-for="c in presetColors"
+              :key="c"
+              type="button"
+              :style="{ background: c }"
+              :class="['swatch', { active: bag.bagColor === c }]"
+              @click="bag.bagColor = c"
             />
           </div>
         </div>
+
 
         <div class="field">
           <label>Font</label>
