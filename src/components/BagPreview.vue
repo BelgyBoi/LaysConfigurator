@@ -29,6 +29,13 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  labelPosition: {
+    type: Object, default: () => ({ x: .75, y: 0.2, align: 'center' })
+  },
+  imagePosition: {
+    type: Object, default: () => ({ x: .8, y: 0.55 })
+  },
+
 })
 
 // DOM ref to the container div
@@ -268,18 +275,19 @@ function getFontStack(fontKey) {
   }
 }
 
-function drawLabel(ctx, text, fontKey, width, height) {
+function drawLabel(ctx, text, fontKey, width, height, pos) {
   if (!text) return
   ctx.save()
   ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'
-  ctx.textAlign = 'center'
+  ctx.textAlign = pos?.align || 'center'
   ctx.textBaseline = 'middle'
   ctx.font = getFontStack(fontKey)
   ctx.shadowColor = 'rgba(255, 255, 255, 0.4)'
   ctx.shadowBlur = 12
-  ctx.fillText(text, width / 2, height * 0.2)
+  ctx.fillText(text, width * (pos?.x ?? 0.5), height * (pos?.y ?? 0.2))
   ctx.restore()
 }
+
 
 function loadImageElement(src) {
   return new Promise((resolve) => {
@@ -311,7 +319,8 @@ async function updateBagAppearance() {
   ctx.fillRect(0, 0, width, height)
 
   drawPattern(ctx, props.pattern, width, height)
-  drawLabel(ctx, props.name, props.font, width, height)
+  drawLabel(ctx, props.name, props.font, width, height, props.labelPosition)
+
 
   const imageEl = await loadImageElement(props.image)
   if (token !== updateToken) return
@@ -321,8 +330,10 @@ async function updateBagAppearance() {
     const scale = Math.min(maxW / imageEl.width, maxH / imageEl.height, 1)
     const drawW = imageEl.width * scale
     const drawH = imageEl.height * scale
-    const dx = (width - drawW) / 2
-    const dy = height * 0.55 - drawH / 2
+    const cx = width * (props.imagePosition?.x ?? 0.5)
+    const cy = height * (props.imagePosition?.y ?? 0.55)
+    const dx = cx - drawW / 2
+    const dy = cy - drawH / 2
     ctx.drawImage(imageEl, dx, dy, drawW, drawH)
   }
 
@@ -349,7 +360,7 @@ async function updateBagAppearance() {
 }
 
 watch(
-  () => [props.color, props.pattern, props.packaging, props.image, props.name, props.font],
+  () => [props.color, props.pattern, props.packaging, props.image, props.name, props.font, props.labelPosition, props.imagePosition],
   () => updateBagAppearance(),
   { immediate: true },
 )
