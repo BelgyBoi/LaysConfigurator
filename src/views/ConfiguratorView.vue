@@ -1,7 +1,7 @@
 <script setup>
 import { reactive, ref } from 'vue'
 import BagPreview from '@/components/BagPreview.vue'
-import { Chrome } from '@ckpack/vue-color'
+
 
 const bag = reactive({
   name: '',
@@ -40,11 +40,6 @@ function toHexString(value) {
     }
   }
   return '#ffffff'
-}
-
-function openColorPicker() {
-  tempColor.value = bag.bagColor || '#ffffff'
-  isColorPickerOpen.value = true
 }
 
 function confirmColor() {
@@ -118,22 +113,12 @@ function clearImage() {
 
         <div class="field dual">
           <label>Bag color</label>
-          <div
-            class="color-bar"
-            role="button"
-            tabindex="0"
-            @click="openColorPicker"
-            @keydown.enter.prevent="openColorPicker"
-            @keydown.space.prevent="openColorPicker"
-          >
-            <span class="color-bar__swatch" :style="{ background: bag.bagColor }"></span>
+          <div>
             <input
               class="color-bar__value"
               type="text"
               v-model="bag.bagColor"
               placeholder="#ffffff"
-              @click.stop
-              @keydown.stop
             />
           </div>
         </div>
