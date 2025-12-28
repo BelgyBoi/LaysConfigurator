@@ -3,6 +3,7 @@ import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js'
 
 const props = defineProps({
   color: {
@@ -70,27 +71,31 @@ onMounted(() => {
 
   // ---- 1) Scene ----
   scene = new THREE.Scene()
-  scene.background = new THREE.Color(0xffffff)
 
   const width = container.clientWidth || 600
   const height = container.clientHeight || 400
 
   // ---- 2) Camera ----
-  camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100)
+  camera = new THREE.PerspectiveCamera(85, width / height, 0.1, 100)
   camera.position.set(0, 0.5, 2)
 
   // ---- 3) Renderer ----
-  renderer = new THREE.WebGLRenderer({ antialias: true })
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
   renderer.setPixelRatio(window.devicePixelRatio || 1)
   renderer.setSize(width, height)
+  renderer.shadowMap.enabled = true // <--- Enable shadows
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap
   container.appendChild(renderer.domElement)
 
   // ---- 4) Lights ----
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.9)
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6)
   scene.add(ambientLight)
 
-  const keyLight = new THREE.DirectionalLight(0xffffff, 0.8)
+  const keyLight = new THREE.DirectionalLight(0xffffff, 1.0)
   keyLight.position.set(2, 4, 5)
+  keyLight.castShadow = true // <--- Casting shadow
+  keyLight.shadow.mapSize.width = 1024
+  keyLight.shadow.mapSize.height = 1024
   scene.add(keyLight)
 
   const fillLight = new THREE.DirectionalLight(0xffffff, 0.5)
@@ -101,7 +106,9 @@ onMounted(() => {
   controls = new OrbitControls(camera, renderer.domElement)
   controls.enableDamping = true
   controls.dampingFactor = 0.05
-  controls.enablePan = false // keep it simple
+  controls.enablePan = true // Re-enabled panning per request "move around"
+  controls.minDistance = 2
+  controls.maxDistance = 20
   controls.target.set(0, 0, 0)
   controls.update()
 
@@ -120,8 +127,16 @@ onMounted(() => {
 
       bag.position.sub(center)
 
+      // Calculate bottom for shadow plane
+      const bagBottomY = -size.y / 2
+
       const maxSize = Math.max(size.x, size.y, size.z)
-      const distance = maxSize * 1.5 // 👈 this is the “how far camera stands back”
+
+      // Dynamic distance based on FOV to keep object size consistent while showing more background
+      // Increased FOV means we need to get closer to keep object frame size, but user wants 'HDRI zoomed out',
+      // which is physically achieved by wide FOV + closer camera (Dolly Zoom effect).
+      const fovRad = camera.fov * (Math.PI / 180)
+      const distance = Math.abs(maxSize / (2 * Math.tan(fovRad / 2))) * 1.8
 
       camera.position.set(0, maxSize * 0.4, distance)
       camera.near = distance / 100
@@ -136,6 +151,9 @@ onMounted(() => {
       // --- override all materials to flat gray ---
       bag.traverse((child) => {
         if (child.isMesh) {
+          child.castShadow = true     // <--- Bag casts shadow
+          child.receiveShadow = true
+
           const material = new THREE.MeshStandardMaterial({
             color: 0xffffff,
             metalness: 0.1,
@@ -147,9 +165,32 @@ onMounted(() => {
         }
       })
 
-      updateBagAppearance()
-
       scene.add(bag)
+
+      // --- Base / Plinth ---
+      // A small cylinder for the bag to "stand" on (Trophy style)
+      // Radius slightly larger than the bag's widest point
+      const baseRadius = Math.max(size.x, size.z) * 0.65
+
+      const baseMaterial = new THREE.MeshStandardMaterial({
+        color: 0x333333,
+        roughness: 0.2,
+        metalness: 0.8
+      })
+      const base = new THREE.Mesh(
+        new THREE.CylinderGeometry(baseRadius, baseRadius, 0.2, 64),
+        baseMaterial
+      )
+
+      // Shift base slightly left
+      const shiftX = -0.5
+      base.position.x = shiftX
+      base.position.y = bagBottomY - 0.1 // Sit just below bag
+      base.receiveShadow = true
+      scene.add(base)
+
+      // Also shift bag to match base
+      bag.position.x = shiftX
 
       // --- animation loop (no auto-spin, just controls + render) ---
       const animate = () => {
@@ -167,7 +208,26 @@ onMounted(() => {
     },
   )
 
-  // ---- 7) Handle window resize ----
+  // ---- 7) Load the Environment (using RGBELoader for .hdr format) ----
+  new RGBELoader().load(
+    '/textrures/neon_photostudio_2k.hdr', // Note: using folder name 'textrures' as created
+    (texture) => {
+      texture.mapping = THREE.EquirectangularReflectionMapping
+      scene.environment = texture
+      scene.background = texture
+
+      // Rotate background to show the neon lights behind the bag
+      scene.backgroundRotation.y = Math.PI / 1.45
+      scene.environmentRotation.y = Math.PI / 1.45
+
+      renderer.toneMapping = THREE.ACESFilmicToneMapping
+      renderer.toneMappingExposure = 1.0
+    },
+    undefined,
+    (err) => console.error('Error loading HDRI:', err)
+  )
+
+  // ---- 8) Handle window resize ----
   window.addEventListener('resize', onWindowResize)
   onWindowResize() // make sure it matches container size
 })
@@ -370,13 +430,11 @@ watch(
 
 <style scoped>
 .bag-preview {
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   display: block;
   margin: 0;
-  border-radius: 8px;
-  border: solid red 3px;
-  padding: -999px;
+  box-sizing: border-box;
 }
 
 .swatches { display: flex; gap: 8px; flex-wrap: wrap; }

@@ -92,9 +92,9 @@ function clearImage() {
 
 <template>
   <div class="configurator">
-    <header class="configurator__header">
+    <!-- <header class="configurator__header">
       <p class="eyebrow">Lays configurator</p>
-    </header>
+    </header> -->
 
     <div class="configurator__layout">
       <div class="preview-panel">
@@ -220,8 +220,13 @@ function clearImage() {
 
 <style scoped>
 .configurator {
-  padding: 16px 24px 24px;
+  padding: 0;
   color: #1f1f1f;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
 }
 
 .configurator__header {
@@ -245,14 +250,17 @@ function clearImage() {
 .configurator__layout {
   display: flex;
   align-items: flex-start;
-  gap: 28px;
+  width: 100%;
+  height: 100%;
 }
 
 .preview-panel {
-  flex: 1 1 40%;
+  flex: 1;
   display: flex;
   justify-content: flex-start;
-  padding-left: 8px;
+  width: 100%;
+  height: 100%;
+  padding: 0;
 }
 
 .config-form {

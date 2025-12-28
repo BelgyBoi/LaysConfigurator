@@ -17,15 +17,20 @@
   </div>
 </template>
 
+
 <style>
 .app-root {
-  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 .top-nav {
   background: var(--accent-color);
   font-size: 1.25rem;
   font-weight: 600;
+  flex: 0 0 auto; /* Don't shrink */
 }
 
 .nav-inner {
@@ -79,7 +84,12 @@
   transform: scale(0.95);
 }
 
-/* .app-shell {
-  padding: 0 15px;
-} */
+.app-shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  /* padding: 0 15px; */
+}
 </style>
