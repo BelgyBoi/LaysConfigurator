@@ -256,6 +256,8 @@ function clearImage() {
 }
 
 .config-form {
+  position: fixed;
+  right: 25px;
   flex: 1 1 60%;
   background: #f7f8fa;
   border: 1px solid #e2e6eb;

@@ -79,7 +79,7 @@
   transform: scale(0.95);
 }
 
-.app-shell {
+/* .app-shell {
   padding: 0 15px;
-}
+} */
 </style>

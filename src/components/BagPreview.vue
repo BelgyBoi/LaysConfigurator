@@ -306,8 +306,8 @@ async function updateBagAppearance() {
   const token = ++updateToken
   if (!bagMaterials.length) return
 
-  const width = 1024
-  const height = 1024
+  const width = 100
+  const height = 100
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
@@ -324,9 +324,7 @@ async function updateBagAppearance() {
   const imageEl = await loadImageElement(props.image)
   if (token !== updateToken) return
   if (imageEl) {
-    const maxW = width * 0.6
-    const maxH = height * 0.5
-    const scale = Math.min(maxW / imageEl.width, maxH / imageEl.height, 1)
+    const scale = Math.min(width / imageEl.width, height / imageEl.height, 1)
     const drawW = imageEl.width * scale
     const drawH = imageEl.height * scale
     const cx = width * (props.imagePosition?.x ?? 0.5)
@@ -372,11 +370,13 @@ watch(
 
 <style scoped>
 .bag-preview {
-  width: 40vw;
-  height: 80vh;
+  width: 100vw;
+  height: 100vh;
+  display: block;
   margin: 0;
   border-radius: 8px;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.1);
+  border: solid red 3px;
+  padding: -999px;
 }
 
 .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
