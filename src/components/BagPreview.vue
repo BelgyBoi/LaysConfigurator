@@ -36,8 +36,27 @@ const props = defineProps({
   imagePosition: {
     type: Object, default: () => ({ x: .8, y: 0.55 })
   },
-
 })
+
+// --- SCENE CONFIGURATION ---
+// Adjust these values to change the spatial positioning
+const sceneSettings = {
+  bag: {
+    offsetX: -0.5,    // Shift left/right (negative is left)
+    offsetY: -0.1,    // Shift up/down relative to calculated bottom
+    rotationY: 0.2,   // Spin (Yaw)
+    rotationX: 0,     // Tilt Forward/Back (Pitch)
+    rotationZ: 0.8,   // Tilt Sideways (Roll)
+  },
+  environment: {
+    rotationY: Math.PI / 1.75, // Rotate the HDRI background
+  },
+  camera: {
+    fov: 85,          // Field of view
+    startZFactor: 2,  // Multiplier for auto-distance calculation
+    centerY: 0.2      // Height factor (multiplier of object size). Lower = lower camera.
+  }
+}
 
 // DOM ref to the container div
 const canvasContainer = ref(null)
@@ -127,18 +146,12 @@ onMounted(() => {
 
       bag.position.sub(center)
 
-      // Calculate bottom for shadow plane
-      const bagBottomY = -size.y / 2
-
       const maxSize = Math.max(size.x, size.y, size.z)
 
-      // Dynamic distance based on FOV to keep object size consistent while showing more background
-      // Increased FOV means we need to get closer to keep object frame size, but user wants 'HDRI zoomed out',
-      // which is physically achieved by wide FOV + closer camera (Dolly Zoom effect).
       const fovRad = camera.fov * (Math.PI / 180)
-      const distance = Math.abs(maxSize / (2 * Math.tan(fovRad / 2))) * 1.8
+      const distance = Math.abs(maxSize / (2 * Math.tan(fovRad / 2))) * sceneSettings.camera.startZFactor
 
-      camera.position.set(0, maxSize * 0.4, distance)
+      camera.position.set(0, maxSize * sceneSettings.camera.centerY, distance)
       camera.near = distance / 100
       camera.far = distance * 10
       camera.updateProjectionMatrix()
@@ -167,30 +180,11 @@ onMounted(() => {
 
       scene.add(bag)
 
-      // --- Base / Plinth ---
-      // A small cylinder for the bag to "stand" on (Trophy style)
-      // Radius slightly larger than the bag's widest point
-      const baseRadius = Math.max(size.x, size.z) * 0.65
-
-      const baseMaterial = new THREE.MeshStandardMaterial({
-        color: 0x333333,
-        roughness: 0.2,
-        metalness: 0.8
-      })
-      const base = new THREE.Mesh(
-        new THREE.CylinderGeometry(baseRadius, baseRadius, 0.2, 64),
-        baseMaterial
-      )
-
-      // Shift base slightly left
-      const shiftX = -0.5
-      base.position.x = shiftX
-      base.position.y = bagBottomY - 0.1 // Sit just below bag
-      base.receiveShadow = true
-      scene.add(base)
-
-      // Also shift bag to match base
-      bag.position.x = shiftX
+      // Apply offsets and rotation
+      bag.position.x = sceneSettings.bag.offsetX
+      bag.rotation.y = sceneSettings.bag.rotationY
+      bag.rotation.x = sceneSettings.bag.rotationX
+      bag.rotation.z = sceneSettings.bag.rotationZ
 
       // --- animation loop (no auto-spin, just controls + render) ---
       const animate = () => {
@@ -217,8 +211,8 @@ onMounted(() => {
       scene.background = texture
 
       // Rotate background to show the neon lights behind the bag
-      scene.backgroundRotation.y = Math.PI / 1.45
-      scene.environmentRotation.y = Math.PI / 1.45
+      scene.backgroundRotation.y = sceneSettings.environment.rotationY
+      scene.environmentRotation.y = sceneSettings.environment.rotationY
 
       renderer.toneMapping = THREE.ACESFilmicToneMapping
       renderer.toneMappingExposure = 1.0
@@ -288,16 +282,19 @@ function drawPattern(ctx, pattern, width, height) {
   ctx.globalAlpha = 0.12
   ctx.fillStyle = '#ffffff'
 
+  // Scale factors based on 1024px width
+  const s = width / 1024
+
   if (pattern === 'stripes') {
     ctx.translate(0, 0)
     ctx.rotate((-10 * Math.PI) / 180)
-    const stripeWidth = 30
+    const stripeWidth = 30 * s * 6 // roughly 180px wide stripes
     for (let x = -width; x < width * 2; x += stripeWidth * 2) {
       ctx.fillRect(x, -height, stripeWidth, height * 3)
     }
   } else if (pattern === 'dots') {
-    const radius = 10
-    const gap = 50
+    const radius = 10 * s * 4 // 40px radius
+    const gap = 50 * s * 5    // 250px gap
     for (let y = 0; y < height + gap; y += gap) {
       for (let x = 0; x < width + gap; x += gap) {
         ctx.beginPath()
@@ -307,12 +304,12 @@ function drawPattern(ctx, pattern, width, height) {
     }
   } else if (pattern === 'waves') {
     ctx.strokeStyle = '#ffffff'
-    ctx.lineWidth = 12
-    const amplitude = 20
-    const wavelength = 160
-    for (let y = 80; y < height + 80; y += 80) {
+    ctx.lineWidth = 12 * s * 4
+    const amplitude = 20 * s * 5
+    const wavelength = 160 * s * 4
+    for (let y = 80 * s * 4; y < height + 80 * s * 4; y += 80 * s * 4) {
       ctx.beginPath()
-      for (let x = 0; x <= width; x += 10) {
+      for (let x = 0; x <= width; x += 10 * s * 4) {
         const yOffset = Math.sin((x / wavelength) * Math.PI * 2) * amplitude
         ctx.lineTo(x, y + yOffset)
       }
@@ -325,13 +322,13 @@ function drawPattern(ctx, pattern, width, height) {
 function getFontStack(fontKey) {
   switch (fontKey) {
     case 'serif':
-      return '700 68px "Times New Roman", Georgia, serif'
+      return '700 180px "Times New Roman", Georgia, serif'
     case 'sans':
-      return '700 64px "Helvetica Neue", Arial, sans-serif'
+      return '700 180px "Helvetica Neue", Arial, sans-serif'
     case 'script':
-      return '700 68px "Pacifico", "Brush Script MT", cursive'
+      return '700 200px "Pacifico", "Brush Script MT", cursive'
     default:
-      return '700 64px "Helvetica Neue", Arial, sans-serif'
+      return '700 180px "Helvetica Neue", Arial, sans-serif'
   }
 }
 
@@ -366,8 +363,8 @@ async function updateBagAppearance() {
   const token = ++updateToken
   if (!bagMaterials.length) return
 
-  const width = 100
-  const height = 100
+  const width = 1024
+  const height = 1024
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
@@ -437,8 +434,5 @@ watch(
   box-sizing: border-box;
 }
 
-.swatches { display: flex; gap: 8px; flex-wrap: wrap; }
-.swatch { width: 32px; height: 32px; border-radius: 8px; border: 2px solid #d6dbe2; cursor: pointer; }
-.swatch.active { border-color: #333; box-shadow: 0 0 0 2px rgba(0,0,0,0.08); }
 
 </style>
