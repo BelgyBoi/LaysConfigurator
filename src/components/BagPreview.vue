@@ -2,7 +2,7 @@
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+// OrbitControls removed
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js'
 
 const props = defineProps({
@@ -31,10 +31,10 @@ const props = defineProps({
     default: '',
   },
   labelPosition: {
-    type: Object, default: () => ({ x: .75, y: 0.2, align: 'center' })
+    type: Object, default: () => ({ x: .75, y: 0.45, align: 'center' })
   },
   imagePosition: {
-    type: Object, default: () => ({ x: .8, y: 0.55 })
+    type: Object, default: () => ({ x: .75, y: 0.55 })
   },
 })
 
@@ -43,18 +43,18 @@ const props = defineProps({
 const sceneSettings = {
   bag: {
     offsetX: -0.5,    // Shift left/right (negative is left)
-    offsetY: -0.1,    // Shift up/down relative to calculated bottom
-    rotationY: 0.2,   // Spin (Yaw)
-    rotationX: 0,     // Tilt Forward/Back (Pitch)
-    rotationZ: 0.8,   // Tilt Sideways (Roll)
+    offsetY: 0,    // Shift up/down relative to calculated bottom
+    rotationY: 0.25,   // Spin (Yaw)
+    rotationX: 0.1,     // Tilt Forward/Back (Pitch)
+    rotationZ: 0.18,   // Tilt Sideways (Roll)
   },
   environment: {
-    rotationY: Math.PI / 1.75, // Rotate the HDRI background
+    rotationY: Math.PI / 1.85, // Rotate the HDRI background
   },
   camera: {
-    fov: 85,          // Field of view
-    startZFactor: 2,  // Multiplier for auto-distance calculation
-    centerY: 0.2      // Height factor (multiplier of object size). Lower = lower camera.
+    fov: 55,          // Field of view (lower = zoomed in background)
+    startZFactor: 1.2,  // Multiplier for auto-distance calculation
+    centerY: 0.05      // Height factor (multiplier of object size). Higher = see more floor, less ceiling
   }
 }
 
@@ -65,7 +65,30 @@ const canvasContainer = ref(null)
 let scene
 let camera
 let renderer
-let controls
+// let controls // Removed
+// let controls // Removed
+let bag = null
+let isDragging = false
+let previousMousePosition = { x: 0, y: 0 }
+
+function onMouseDown(e) {
+  isDragging = true
+  previousMousePosition = { x: e.clientX, y: e.clientY }
+}
+
+function onMouseMove(e) {
+  if (!isDragging || !bag) return
+  const deltaX = e.clientX - previousMousePosition.x
+  const deltaY = e.clientY - previousMousePosition.y
+  previousMousePosition = { x: e.clientX, y: e.clientY }
+
+  bag.rotation.y += deltaX * 0.005
+  bag.rotation.x += deltaY * 0.005
+}
+
+function onMouseUp() {
+  isDragging = false
+}
 let animationId
 const bagMaterials = []
 let bagTexture = null
@@ -95,7 +118,7 @@ onMounted(() => {
   const height = container.clientHeight || 400
 
   // ---- 2) Camera ----
-  camera = new THREE.PerspectiveCamera(85, width / height, 0.1, 100)
+  camera = new THREE.PerspectiveCamera(sceneSettings.camera.fov, width / height, 0.1, 100)
   camera.position.set(0, 0.5, 2)
 
   // ---- 3) Renderer ----
@@ -122,21 +145,18 @@ onMounted(() => {
   scene.add(fillLight)
 
   // ---- 5) OrbitControls (drag to rotate) ----
-  controls = new OrbitControls(camera, renderer.domElement)
-  controls.enableDamping = true
-  controls.dampingFactor = 0.05
-  controls.enablePan = true // Re-enabled panning per request "move around"
-  controls.minDistance = 2
-  controls.maxDistance = 20
-  controls.target.set(0, 0, 0)
-  controls.update()
+  // ---- 5) Controls (Manual Object Rotation) ----
+  // We attach listeners to the container and window
+  container.addEventListener('mousedown', onMouseDown)
+  window.addEventListener('mousemove', onMouseMove)
+  window.addEventListener('mouseup', onMouseUp)
 
   // ---- 6) Load the GLB bag model ----
   const loader = new GLTFLoader()
   loader.load(
     '/models/bag.glb', // served from public/models/bag.glb
     (gltf) => {
-      const bag = gltf.scene
+      bag = gltf.scene
 
 
       // --- auto-center & frame the bag ---
@@ -154,12 +174,11 @@ onMounted(() => {
       camera.position.set(0, maxSize * sceneSettings.camera.centerY, distance)
       camera.near = distance / 100
       camera.far = distance * 10
+      camera.far = distance * 10
       camera.updateProjectionMatrix()
+      camera.lookAt(0, 0, 0) // Look at standard center to tilt camera down
 
-      if (controls) {
-        controls.target.set(0, 0, 0)
-        controls.update()
-      }
+
 
       // --- override all materials to flat gray ---
       bag.traverse((child) => {
@@ -178,19 +197,25 @@ onMounted(() => {
         }
       })
 
+      // Generate the initial texture (with logo) immediately
+      updateBagAppearance()
+
       scene.add(bag)
 
       // Apply offsets and rotation
-      bag.position.x = sceneSettings.bag.offsetX
+      // We use += so we don't lose the auto-centering adjustment
+      bag.position.x += sceneSettings.bag.offsetX
+      bag.position.y += sceneSettings.bag.offsetY
       bag.rotation.y = sceneSettings.bag.rotationY
       bag.rotation.x = sceneSettings.bag.rotationX
       bag.rotation.z = sceneSettings.bag.rotationZ
+
+      // (Controls removed)
 
       // --- animation loop (no auto-spin, just controls + render) ---
       const animate = () => {
         animationId = requestAnimationFrame(animate)
 
-        if (controls) controls.update()
         renderer.render(scene, camera)
       }
 
@@ -237,10 +262,11 @@ onBeforeUnmount(() => {
     bagTexture = null
   }
 
-  if (controls) {
-    controls.dispose()
-    controls = null
+  if (canvasContainer.value) {
+    canvasContainer.value.removeEventListener('mousedown', onMouseDown)
   }
+  window.removeEventListener('mousemove', onMouseMove)
+  window.removeEventListener('mouseup', onMouseUp)
 
   if (renderer) {
     renderer.dispose()
@@ -322,14 +348,35 @@ function drawPattern(ctx, pattern, width, height) {
 function getFontStack(fontKey) {
   switch (fontKey) {
     case 'serif':
-      return '700 180px "Times New Roman", Georgia, serif'
+      return '700 60px "Times New Roman", Georgia, serif'
     case 'sans':
-      return '700 180px "Helvetica Neue", Arial, sans-serif'
+      return '700 60px "Helvetica Neue", Arial, sans-serif'
     case 'script':
-      return '700 200px "Pacifico", "Brush Script MT", cursive'
+      return '700 80px "Pacifico", "Brush Script MT", cursive'
+
     default:
-      return '700 180px "Helvetica Neue", Arial, sans-serif'
+      return '700 60px "Helvetica Neue", Arial, sans-serif'
   }
+}
+
+// Helper to wrap text into lines
+function getLines(ctx, text, maxWidth) {
+  const words = text.split(' ')
+  const lines = []
+  let currentLine = words[0]
+
+  for (let i = 1; i < words.length; i++) {
+    const word = words[i]
+    const width = ctx.measureText(currentLine + ' ' + word).width
+    if (width < maxWidth) {
+      currentLine += ' ' + word
+    } else {
+      lines.push(currentLine)
+      currentLine = word
+    }
+  }
+  lines.push(currentLine)
+  return lines
 }
 
 function drawLabel(ctx, text, fontKey, width, height, pos) {
@@ -341,9 +388,153 @@ function drawLabel(ctx, text, fontKey, width, height, pos) {
   ctx.font = getFontStack(fontKey)
   ctx.shadowColor = 'rgba(255, 255, 255, 0.4)'
   ctx.shadowBlur = 12
-  ctx.fillText(text, width * (pos?.x ?? 0.5), height * (pos?.y ?? 0.2))
+
+  // Constrain text to 35% of width
+  const maxWidth = width * 0.35
+
+  const lines = getLines(ctx, text, maxWidth)
+
+  const lineHeight = parseInt(getFontStack(fontKey).match(/\d+px/)?.[0] || '60') * 1.2
+  // Max height constraint: Limit to 3 lines
+  const maxLines = 4
+  const visibleLines = lines.slice(0, maxLines)
+
+
+
+  // Center X: 0.75 * width
+  const cx = width * (pos?.x ?? 0.75)
+  // Top Y: based on pos.y
+  let startY = (height * (pos?.y ?? 0.45))
+
+  visibleLines.forEach((line, index) => {
+    ctx.fillText(line, cx, startY + (index * lineHeight) + (lineHeight/2))
+  })
+
   ctx.restore()
 }
+
+
+function drawRearGraphics(ctx, img, cx, cy, width) {
+  ctx.save()
+  const scale = width / 1024
+
+  // The generated image should be sized appropriately.
+  // Let's assume we want it to cover a good portion of the back.
+  // Original programmatic box was 350px wide.
+  // Let's scale the image to be similar width or fit nicely.
+
+  const targetWidth = 380 * scale
+  const aspectRatio = img.width / img.height
+  const targetHeight = targetWidth / aspectRatio
+
+  const x = cx - targetWidth / 2
+  const y = cy - targetHeight / 2 // Centered vertically on the 'cy' point
+
+  ctx.drawImage(img, x, y, targetWidth, targetHeight)
+
+
+  ctx.restore()
+}
+
+
+function drawBackSeam(ctx, cx, height, width) {
+  const scale = width / 1024
+  const seamWidth = 20 * scale  // Reduced from 35
+
+  ctx.save()
+
+  // 1. Drop shadow to simulate extrusion/sitting on top
+  // Draw a blurred black rect slightly OFFSET to the LEFT (mirrored)
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
+  ctx.shadowBlur = 10 * scale
+  ctx.shadowOffsetX = -4 * scale // Negative for left offset
+  ctx.fillStyle = 'rgba(0,0,0,0)' // invisible fill, just for shadow
+  ctx.fillRect(cx - seamWidth/2, 0, seamWidth, height)
+
+  // Reset shadow for main drawing
+  ctx.shadowColor = 'transparent'
+  ctx.shadowBlur = 0
+  ctx.shadowOffsetX = 0
+
+  // 2. The main white seam tape
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.95)'
+  ctx.fillRect(cx - seamWidth/2, 0, seamWidth, height)
+
+  // 3. Silver foil edge (uneven press)
+  // Mirror: Put thin silver strip on the LEFT edge
+  const foilWidth = 8 * scale
+  const foilX = cx - seamWidth/2 // Start at left edge
+
+  const foilGradient = ctx.createLinearGradient(foilX, 0, foilX + foilWidth, 0)
+  foilGradient.addColorStop(0, '#909090') // Darker out
+  foilGradient.addColorStop(0.4, '#a8a8a8')
+  foilGradient.addColorStop(0.7, '#ffffff')
+  foilGradient.addColorStop(1, '#d1d1d1')
+
+  ctx.fillStyle = foilGradient
+  ctx.fillRect(foilX, 0, foilWidth, height)
+
+  // 4. Gradient overlay for 3D tube shape of the seam
+  const gradient = ctx.createLinearGradient(cx - seamWidth/2, 0, cx + seamWidth/2, 0)
+  gradient.addColorStop(0, 'rgba(0, 0, 0, 0.2)')   // Shadow Left
+  gradient.addColorStop(0.15, 'rgba(0, 0, 0, 0)') // curve up
+  gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.2)') // Highlight Top
+  gradient.addColorStop(0.85, 'rgba(0, 0, 0, 0)') // curve down
+  gradient.addColorStop(1, 'rgba(0, 0, 0, 0.3)')   // Shadow Right
+
+  ctx.fillStyle = gradient
+  ctx.fillRect(cx - seamWidth/2, 0, seamWidth, height)
+
+  // 5. Thin crisp lines for edges
+  ctx.lineWidth = 0.5 * scale
+  ctx.strokeStyle = 'rgba(0,0,0, 0.2)'
+
+  // Left Edge
+  ctx.beginPath()
+  ctx.moveTo(cx - seamWidth/2, 0)
+  ctx.lineTo(cx - seamWidth/2, height)
+  ctx.stroke()
+
+  // Right Edge
+  ctx.beginPath()
+  ctx.moveTo(cx + seamWidth/2, 0)
+  ctx.lineTo(cx + seamWidth/2, height)
+  ctx.stroke()
+
+  ctx.restore()
+}
+
+function drawBottomCrimps(ctx, width, height) {
+  ctx.save()
+  const scale = width / 1024
+  // Assume bottom crimp area is the bottom ~5-8% of the texture
+  const crimpHeight = 80 * scale
+  const startY = height - crimpHeight
+
+  // Clip to bottom area
+  ctx.beginPath()
+  ctx.rect(0, startY, width, crimpHeight)
+  ctx.clip()
+
+  // Draw horizontal lines to simulate ridges
+  const ridgeCount = 12
+  const step = crimpHeight / ridgeCount
+
+  for (let i = 0; i < ridgeCount; i++) {
+    const y = startY + (i * step)
+
+    // Highlight top of ridge
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'
+    ctx.fillRect(0, y, width, step * 0.5)
+
+    // Shadow bottom of ridge
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.15)'
+    ctx.fillRect(0, y + step * 0.5, width, step * 0.5)
+  }
+
+  ctx.restore()
+}
+
 
 function loadImageElement(src) {
   return new Promise((resolve) => {
@@ -374,22 +565,90 @@ async function updateBagAppearance() {
   ctx.fillStyle = normalizeColor(props.color)
   ctx.fillRect(0, 0, width, height)
 
+  // Draw Rear Graphics - Back of bag
+  // Note: Vite serves 'public' at root
+  const backsideEl = await loadImageElement('/assets/lays-backside.png')
+  if (token !== updateToken) return
+
+  if (backsideEl) {
+     drawRearGraphics(ctx, backsideEl, width * 0.25, height * 0.5, width)
+  }
+
+  // Draw the rear seam overlay (after graphics so it sits on top)
+  // Shift slightly right (0.26) - micro adjusted
+  drawBackSeam(ctx, width * 0.26, height, width)
+
+  // Draw bottom crimps (ribbles)
+  drawBottomCrimps(ctx, width, height)
+
+
   drawPattern(ctx, props.pattern, width, height)
-  drawLabel(ctx, props.name, props.font, width, height, props.labelPosition)
 
-
+  // --- Draw User Image (Backdrop) ---
   const imageEl = await loadImageElement(props.image)
   if (token !== updateToken) return
   if (imageEl) {
-    const scale = Math.min(width / imageEl.width, height / imageEl.height, 1)
+    // Constrain to slightly wider than text (text is 0.35 * width)
+    const targetWidth = width * 0.35 * 1.2
+
+    // Center X of the strip
+    const stripCx = width * (props.imagePosition?.x ?? 0.75)
+
+    // Define the full-height strip area
+    const stripX = stripCx - targetWidth / 2
+    const stripY = 0
+    const stripH = height // Full height
+
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(stripX, stripY, targetWidth, stripH)
+    ctx.clip()
+
+    // Calculate scale to "cover" the strip area
+    // We want the image to fill the strip width AND strip height (which is full height)
+    // So we take the larger of the two required scales
+    const scaleW = targetWidth / imageEl.width
+    const scaleH = stripH / imageEl.height
+    const scale = Math.max(scaleW, scaleH)
+
     const drawW = imageEl.width * scale
     const drawH = imageEl.height * scale
-    const cx = width * (props.imagePosition?.x ?? 0.5)
-    const cy = height * (props.imagePosition?.y ?? 0.55)
+
+    // Draw centered on the strip center (stripCx) and vertical center (or props.y)
+    // If we want "fill full height", aligning to vertical center of bag is safest to ensure coverage
+    const cx = stripCx
+    const cy = height * (props.imagePosition?.y ?? 0.5) // Allow small vertical adjustment if user wants, but default center
+
     const dx = cx - drawW / 2
     const dy = cy - drawH / 2
+
     ctx.drawImage(imageEl, dx, dy, drawW, drawH)
+    ctx.restore()
   }
+
+  // --- Draw Static Lays Logo ---
+  // Note: Vite serves 'public' at root, so path is /assets/...
+  const logoEl = await loadImageElement('/assets/logo-lays.png')
+  if (token !== updateToken) return
+
+  if (logoEl) {
+    const logoScale = 0.2 // Reduced size to 20%
+    const logoAspectRatio = logoEl.width / logoEl.height
+    const drawW = width * logoScale
+    const drawH = drawW / logoAspectRatio
+
+    // Align X with label (0.75) - matching other assets
+    const cx = width * 0.75
+    const dx = cx - drawW / 2
+    const dy = height * 0.22
+
+    ctx.drawImage(logoEl, dx, dy, drawW, drawH)
+  }
+
+  drawLabel(ctx, props.name, props.font, width, height, props.labelPosition)
+
+
+
 
   const texture = new THREE.CanvasTexture(canvas)
   texture.wrapS = THREE.ClampToEdgeWrapping
