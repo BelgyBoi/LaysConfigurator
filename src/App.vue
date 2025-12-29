@@ -1,6 +1,19 @@
+<script setup>
+import { ref, onMounted } from 'vue'
+
+const navRef = ref(null)
+
+onMounted(() => {
+  if (navRef.value) {
+    const height = navRef.value.offsetHeight
+    document.documentElement.style.setProperty('--nav-height', `${height}px`)
+  }
+})
+</script>
+
 <template>
   <div class="app-root">
-    <nav class="top-nav">
+    <nav class="top-nav" ref="navRef">
       <div class="nav-inner">
         <ul class="nav-links">
           <li><router-link to="/">Configurator</router-link></li>
@@ -16,7 +29,6 @@
     </main>
   </div>
 </template>
-
 
 <style>
 .app-root {

@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, ref } from 'vue'
+import { reactive, ref} from 'vue'
 import BagPreview from '@/components/BagPreview.vue'
 
 const bag = reactive({
@@ -88,6 +88,7 @@ function clearImage() {
     imageInputRef.value.value = ''
   }
 }
+
 </script>
 
 <template>
@@ -265,7 +266,7 @@ function clearImage() {
 .config-form {
   position: fixed;
   right: 25px;
-  top: 30px;
+  top: calc(var(--nav-height) + 60px);
   flex: 1 1 60%;
   background: #f7f8fa;
   border: 1px solid #e2e6eb;
