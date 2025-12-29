@@ -265,13 +265,13 @@ function clearImage() {
 
 .config-form {
   position: fixed;
-  right: 25px;
+  right: 60px;
   top: calc(var(--nav-height) + 60px);
   flex: 1 1 60%;
   background: #f7f8fa;
   border: 1px solid #e2e6eb;
   border-radius: 12px;
-  padding: 18px;
+  padding: 18px 25px;
   display: grid;
   gap: 14px;
 }
