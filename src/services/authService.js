@@ -1,4 +1,4 @@
-const API_BASE_URL = "https://laysapi-uyjc.onrender.com/api/v1/default";
+const API_BASE_URL = "/api/v1/default";
 
 /**
  * Logs in a user.
