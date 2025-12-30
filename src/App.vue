@@ -1,7 +1,16 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { logout } from './services/authService'
 
 const navRef = ref(null)
+const router = useRouter()
+const route = useRoute()
+
+const handleLogout = () => {
+  logout()
+  router.push({ name: 'signin' })
+}
 
 onMounted(() => {
   if (navRef.value) {
@@ -13,14 +22,14 @@ onMounted(() => {
 
 <template>
   <div class="app-root">
-    <nav class="top-nav" ref="navRef">
+    <nav class="top-nav" ref="navRef" v-if="!route.meta.hideNavigation">
       <div class="nav-inner">
         <ul class="nav-links">
           <li><router-link to="/">Configurator</router-link></li>
           <li><router-link to="/feed">Feed</router-link></li>
         </ul>
 
-        <button class="logout-btn">Logout</button>
+        <button class="logout-btn" @click="handleLogout">Logout</button>
       </div>
     </nav>
 

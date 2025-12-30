@@ -12,6 +12,7 @@ body {
   color: var(--text-color);
   background-color: var(--background-color);
   margin: 0;
+  font-family: 'Nunito', sans-serif;
 }
 
 button {
