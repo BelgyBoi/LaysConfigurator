@@ -125,6 +125,7 @@ onMounted(() => {
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
   renderer.setPixelRatio(window.devicePixelRatio || 1)
   renderer.setSize(width, height)
+  renderer.outputColorSpace = THREE.SRGBColorSpace
   renderer.shadowMap.enabled = true // <--- Enable shadows
   renderer.shadowMap.type = THREE.PCFSoftShadowMap
   container.appendChild(renderer.domElement)
@@ -239,7 +240,7 @@ onMounted(() => {
       scene.backgroundRotation.y = sceneSettings.environment.rotationY
       scene.environmentRotation.y = sceneSettings.environment.rotationY
 
-      renderer.toneMapping = THREE.ACESFilmicToneMapping
+      renderer.toneMapping = THREE.NeutralToneMapping
       renderer.toneMappingExposure = 1.0
     },
     undefined,
@@ -651,6 +652,7 @@ async function updateBagAppearance() {
 
 
   const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
   texture.wrapS = THREE.ClampToEdgeWrapping
   texture.wrapT = THREE.ClampToEdgeWrapping
   texture.anisotropy = renderer?.capabilities?.getMaxAnisotropy
