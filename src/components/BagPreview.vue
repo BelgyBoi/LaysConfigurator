@@ -315,13 +315,13 @@ function drawPattern(ctx, pattern, width, height) {
   if (pattern === 'stripes') {
     ctx.translate(0, 0)
     ctx.rotate((-10 * Math.PI) / 180)
-    const stripeWidth = 30 * s * 6 // roughly 180px wide stripes
+    const stripeWidth = 30 * s * 1.5 // Reduced from * 6
     for (let x = -width; x < width * 2; x += stripeWidth * 2) {
       ctx.fillRect(x, -height, stripeWidth, height * 3)
     }
   } else if (pattern === 'dots') {
-    const radius = 10 * s * 4 // 40px radius
-    const gap = 50 * s * 5    // 250px gap
+    const radius = 10 * s * 1.2 // Reduced from * 4
+    const gap = 50 * s * 1.2    // Reduced from * 5
     for (let y = 0; y < height + gap; y += gap) {
       for (let x = 0; x < width + gap; x += gap) {
         ctx.beginPath()
@@ -331,12 +331,13 @@ function drawPattern(ctx, pattern, width, height) {
     }
   } else if (pattern === 'waves') {
     ctx.strokeStyle = '#ffffff'
-    ctx.lineWidth = 12 * s * 4
-    const amplitude = 20 * s * 5
-    const wavelength = 160 * s * 4
-    for (let y = 80 * s * 4; y < height + 80 * s * 4; y += 80 * s * 4) {
+    ctx.lineWidth = 12 * s * 1
+    const amplitude = 20 * s * 1.5
+    const wavelength = 160 * s * 1
+    const step = 80 * s * 1
+    for (let y = step; y < height + step; y += step) {
       ctx.beginPath()
-      for (let x = 0; x <= width; x += 10 * s * 4) {
+      for (let x = 0; x <= width; x += 10 * s) {
         const yOffset = Math.sin((x / wavelength) * Math.PI * 2) * amplitude
         ctx.lineTo(x, y + yOffset)
       }
@@ -585,43 +586,43 @@ async function updateBagAppearance() {
 
   drawPattern(ctx, props.pattern, width, height)
 
-  // --- Draw User Image (Backdrop) ---
+    // --- Draw User Image (Backdrop) ---
   const imageEl = await loadImageElement(props.image)
   if (token !== updateToken) return
   if (imageEl) {
-    // Constrain to slightly wider than text (text is 0.35 * width)
+    // Constrain to slightly wider than text
     const targetWidth = width * 0.35 * 1.2
 
     // Center X of the strip
     const stripCx = width * (props.imagePosition?.x ?? 0.75)
 
-    // Define the full-height strip area
+    // Calculate Y "stack" position:
+    // Logo is at ~0.22 height
+    // Text is at ~0.45 height
+    // Image should be below text. Let's start around 0.55 or 0.6
+
+    const stripY = height * 0.55 // Start lower down
+    const stripH = height * 0.35 // Take up ~35% of height (bottom area)
     const stripX = stripCx - targetWidth / 2
-    const stripY = 0
-    const stripH = height // Full height
 
     ctx.save()
     ctx.beginPath()
+    // Define the "box" for the image to sit in
     ctx.rect(stripX, stripY, targetWidth, stripH)
     ctx.clip()
 
-    // Calculate scale to "cover" the strip area
-    // We want the image to fill the strip width AND strip height (which is full height)
-    // So we take the larger of the two required scales
+    // Calculate scale to CONTAIN the image within this box
+    // (User wanted it "contained on the bag")
     const scaleW = targetWidth / imageEl.width
     const scaleH = stripH / imageEl.height
-    const scale = Math.max(scaleW, scaleH)
+    const scale = Math.min(scaleW, scaleH) // FIT it inside
 
     const drawW = imageEl.width * scale
     const drawH = imageEl.height * scale
 
-    // Draw centered on the strip center (stripCx) and vertical center (or props.y)
-    // If we want "fill full height", aligning to vertical center of bag is safest to ensure coverage
-    const cx = stripCx
-    const cy = height * (props.imagePosition?.y ?? 0.5) // Allow small vertical adjustment if user wants, but default center
-
-    const dx = cx - drawW / 2
-    const dy = cy - drawH / 2
+    // Center in the box
+    const dx = stripX + (targetWidth - drawW) / 2
+    const dy = stripY + (stripH - drawH) / 2
 
     ctx.drawImage(imageEl, dx, dy, drawW, drawH)
     ctx.restore()

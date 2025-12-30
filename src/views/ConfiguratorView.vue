@@ -1,6 +1,12 @@
 <script setup>
-import { reactive, ref} from 'vue'
+import { reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { Chrome } from '@ckpack/vue-color'
 import BagPreview from '@/components/BagPreview.vue'
+import { createBag } from '@/services/bagService'
+
+const router = useRouter()
+const isSaving = ref(false)
 
 const bag = reactive({
   name: '',
@@ -24,12 +30,41 @@ const isColorPickerOpen = ref(false)
 const tempColor = ref(bag.bagColor)
 const imageInputRef = ref(null)
 
-function handleSubmit() {
-  bag.keyFlavours = bag.keyFlavoursText
-    .split(',')
-    .map((flavour) => flavour.trim())
-    .filter(Boolean)
-  console.log('bag payload', bag)
+async function handleSubmit() {
+  if (!bag.name) {
+    alert("Please give your flavor a name!")
+    return
+  }
+
+  isSaving.value = true
+
+  try {
+    bag.keyFlavours = bag.keyFlavoursText
+      .split(',')
+      .map((flavour) => flavour.trim())
+      .filter(Boolean)
+
+    // Prepare payload for API
+    const payload = {
+      name: bag.name,
+      bagColor: bag.bagColor,
+      font: bag.font || 'sans',
+      pattern: bag.pattern,
+      packaging: bag.packaging,
+      inspiration: bag.inspiration,
+      keyFlavours: bag.keyFlavours,
+      image: bag.imageData || null
+    }
+
+    await createBag(payload)
+
+    // Redirect to feed on success
+    router.push('/feed')
+  } catch (error) {
+    alert("Failed to save bag: " + error.message)
+  } finally {
+    isSaving.value = false
+  }
 }
 
 function toHexString(value) {
@@ -88,7 +123,6 @@ function clearImage() {
     imageInputRef.value.value = ''
   }
 }
-
 </script>
 
 <template>
