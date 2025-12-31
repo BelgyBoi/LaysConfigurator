@@ -232,7 +232,7 @@ async function handleVote(bag) {
   width: 100%;
   padding-top: 125%; /* 4:5 Aspect Ratio */
   position: relative;
-  background-color: #f8e503;
+  background-color: #ffffff; /* Was #f8e503 */
   overflow: hidden;
   cursor: grab; /* Indicates interactive */
 }
@@ -244,7 +244,7 @@ async function handleVote(bag) {
 .fit-container {
   position: absolute; /* Match parent */
   top: 0; left: 0; right: 0; bottom: 0;
-  background-color: #f8e503;
+  background-color: #ffffff; /* Was #f8e503 */
 }
 
 /* 3D Scene */
@@ -252,7 +252,7 @@ async function handleVote(bag) {
   width: 100%;
   height: 100%;
   position: relative;
-  background: #f8e503;
+  background: transparent;
 }
 
 /* Static Preview */

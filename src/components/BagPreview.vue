@@ -390,8 +390,14 @@ function drawLabel(ctx, text, fontKey, width, height, pos, bagColor) {
   // Text starts lower now, inside the box. Adjusted for new boxY = 0.3
   let startY = height * 0.43
 
+  // Determine effective colors based on bag color
+  // "only on yellow I need the text and the ribbon at the bottom to be a darker orangy yellow"
+  // Default generic yellow approx hex check
+  const isYellow = (bagColor === '#f8e503' || bagColor === '#f2b705' || !bagColor)
+  const effectiveTextColor = isYellow ? '#d97706' : (bagColor || '#1f2937')
+
   // Main Flavor Name
-  ctx.fillStyle = bagColor || '#1f2937' // Use bag color instead of dark grey
+  ctx.fillStyle = effectiveTextColor
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   // Font: Bold Condensed Sans
@@ -419,7 +425,7 @@ function drawLabel(ctx, text, fontKey, width, height, pos, bagColor) {
 
   // Draw "FLAVORED" - Position relative to effectively drawn lines
   const lastLineY = startY + ((validLines - 1) * lineHeight)
-  ctx.fillStyle = bagColor || '#b45309' // Use bag color
+  ctx.fillStyle = effectiveTextColor // Use computed color
   ctx.font = '700 16px "Helvetica Neue", Arial, sans-serif' // Reduced from 24
   ctx.fillText("FLAVORED", cx, lastLineY + 25) // Reduced gap from 50
 
@@ -436,10 +442,17 @@ function drawLabel(ctx, text, fontKey, width, height, pos, bagColor) {
 
   ctx.save()
 
-  // 1. Footer Background (Lighter Bag Color)
-  const c = new THREE.Color(bagColor || '#db2777')
-  c.offsetHSL(0, 0, 0.15) // Lighten
-  ctx.fillStyle = '#' + c.getHexString()
+  // 1. Footer Background
+  // If yellow, use darker golden yellow. Else lighten bag color.
+  let footerFill
+  if (isYellow) {
+      footerFill = '#fbbf24' // Golden/Orange yellow
+  } else {
+      const c = new THREE.Color(bagColor || '#db2777')
+      c.offsetHSL(0, 0, 0.15) // Lighten
+      footerFill = '#' + c.getHexString()
+  }
+  ctx.fillStyle = footerFill
 
   // Custom Path: Arched Top + Rounded Bottom Corners
   ctx.beginPath()
