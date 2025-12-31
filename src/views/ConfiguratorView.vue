@@ -48,8 +48,11 @@ async function handleSubmit() {
     // Capture the 3D snapshot from the preview component
     let snapshotImage = null
     if (bagPreviewRef.value) {
-      // Capture at decent quality
-      snapshotImage = bagPreviewRef.value.captureSnapshot(0.8, 'image/jpeg')
+      // Capture at high res first, then downscale
+      const rawSnapshot = bagPreviewRef.value.captureSnapshot(0.9, 'image/jpeg')
+      if (rawSnapshot) {
+        snapshotImage = await resizeDataURL(rawSnapshot, 800, 0.8)
+      }
     }
 
     // Prepare payload for API
@@ -126,45 +129,49 @@ function handleImageChange(event) {
     })
 }
 
+function resizeDataURL(dataUrl, maxWidth, quality, outputType = 'image/jpeg') {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      let width = img.width
+      let height = img.height
+
+      if (width > height) {
+        if (width > maxWidth) {
+          height *= maxWidth / width
+          width = maxWidth
+        }
+      } else {
+        if (height > maxWidth) {
+          width *= maxWidth / height
+          height = maxWidth
+        }
+      }
+
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+
+      // Ensure canvas is clear for transparency
+      ctx.clearRect(0, 0, width, height)
+      ctx.drawImage(img, 0, 0, width, height)
+
+      resolve(canvas.toDataURL(outputType, quality))
+    }
+    img.onerror = reject
+    img.src = dataUrl
+  })
+}
+
 function resizeImage(file, maxWidth, quality) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = (e) => {
-      const img = new Image()
-      img.onload = () => {
-        const canvas = document.createElement('canvas')
-        let width = img.width
-        let height = img.height
-
-        if (width > height) {
-          if (width > maxWidth) {
-            height *= maxWidth / width
-            width = maxWidth
-          }
-        } else {
-          if (height > maxWidth) {
-            width *= maxWidth / height
-            height = maxWidth
-          }
-        }
-
-        canvas.width = width
-        canvas.height = height
-        const ctx = canvas.getContext('2d')
-
-        // Ensure canvas is clear for transparency
-        ctx.clearRect(0, 0, width, height)
-        ctx.drawImage(img, 0, 0, width, height)
-
-        // Preserve transparency for PNGs
-        if (file.type === 'image/png') {
-          resolve(canvas.toDataURL('image/png'))
-        } else {
-          resolve(canvas.toDataURL('image/jpeg', quality))
-        }
-      }
-      img.onerror = reject
-      img.src = e.target.result
+      const type = file.type === 'image/png' ? 'image/png' : 'image/jpeg'
+      resizeDataURL(e.target.result, maxWidth, quality, type)
+        .then(resolve)
+        .catch(reject)
     }
     reader.onerror = reject
     reader.readAsDataURL(file)
