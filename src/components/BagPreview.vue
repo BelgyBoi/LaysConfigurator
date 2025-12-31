@@ -351,14 +351,14 @@ function drawPattern(ctx, pattern, width, height) {
 function getFontStack(fontKey) {
   switch (fontKey) {
     case 'serif':
-      return '700 60px "Times New Roman", Georgia, serif'
+      return '700 28px "Times New Roman", Georgia, serif'
     case 'sans':
-      return '700 60px "Helvetica Neue", Arial, sans-serif'
+      return '900 28px "Helvetica Neue", Arial, sans-serif'
     case 'script':
-      return '700 80px "Pacifico", "Brush Script MT", cursive'
+      return '700 36px "Pacifico", "Brush Script MT", cursive'
 
     default:
-      return '700 60px "Helvetica Neue", Arial, sans-serif'
+      return '900 28px "Helvetica Neue", Arial, sans-serif'
   }
 }
 
@@ -382,36 +382,267 @@ function getLines(ctx, text, maxWidth) {
   return lines
 }
 
-function drawLabel(ctx, text, fontKey, width, height, pos) {
+function drawLabel(ctx, text, fontKey, width, height, pos, bagColor) {
   if (!text) return
   ctx.save()
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'
-  ctx.textAlign = pos?.align || 'center'
-  ctx.textBaseline = 'middle'
-  ctx.font = getFontStack(fontKey)
-  ctx.shadowColor = 'rgba(255, 255, 255, 0.4)'
-  ctx.shadowBlur = 12
 
-  // Constrain text to 35% of width
-  const maxWidth = width * 0.35
-
-  const lines = getLines(ctx, text, maxWidth)
-
-  const lineHeight = parseInt(getFontStack(fontKey).match(/\d+px/)?.[0] || '60') * 1.2
-  // Max height constraint: Limit to 3 lines
-  const maxLines = 4
-  const visibleLines = lines.slice(0, maxLines)
-
-
-
-  // Center X: 0.75 * width
   const cx = width * (pos?.x ?? 0.75)
-  // Top Y: based on pos.y
-  let startY = (height * (pos?.y ?? 0.45))
+  // Text starts lower now, inside the box. Adjusted for new boxY = 0.3
+  let startY = height * 0.43
 
-  visibleLines.forEach((line, index) => {
-    ctx.fillText(line, cx, startY + (index * lineHeight) + (lineHeight/2))
-  })
+  // Main Flavor Name
+  ctx.fillStyle = '#1f2937' // Dark Grey/Black for contrast
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  // Font: Bold Condensed Sans
+  ctx.font = getFontStack(fontKey)
+  // Remove shadow for clean print look
+  ctx.shadowColor = 'transparent'
+
+  // Constrain width to fit inside the new box (width * 0.20)
+  const maxWidth = width * 0.18 // Tighter constraint
+  const upperText = text.toUpperCase()
+  const lines = getLines(ctx, upperText, maxWidth)
+
+  // Draw Flavor Name
+  const lineHeight = 30 // Reduced leading
+  const maxTextHeight = 100 // Max height allowed for text block
+
+  let validLines = 0
+  for (let index = 0; index < lines.length; index++) {
+    const yPos = index * lineHeight
+    if (yPos > maxTextHeight) break // Stop drawing if we exceed height
+
+    ctx.fillText(lines[index], cx, startY + yPos)
+    validLines = index + 1
+  }
+
+  // Draw "FLAVORED" - Position relative to effectively drawn lines
+  const lastLineY = startY + ((validLines - 1) * lineHeight)
+  ctx.fillStyle = bagColor || '#b45309' // Use bag color
+  ctx.font = '700 16px "Helvetica Neue", Arial, sans-serif' // Reduced from 24
+  ctx.fillText("FLAVORED", cx, lastLineY + 25) // Reduced gap from 50
+
+  // Draw "Made with Real Potatoes" Footer
+  // Box is at boxY=0.3, boxH=0.3 -> Bottom is 0.6
+
+  const boxTop = height * 0.3
+  const boxHeight = height * 0.3
+  const boxBottom = boxTop + boxHeight
+
+  const boxWidth = width * 0.2
+  const footerBaseH = 40
+  const footerY = boxBottom - footerBaseH
+
+  ctx.save()
+
+  // 1. Footer Background (Lighter Bag Color)
+  const c = new THREE.Color(bagColor || '#db2777')
+  c.offsetHSL(0, 0, 0.15) // Lighten
+  ctx.fillStyle = '#' + c.getHexString()
+
+  // Custom Path: Arched Top + Rounded Bottom Corners
+  ctx.beginPath()
+  const r = 20 // Corner radius
+  const archH = 12 // Height of the top arch
+
+  // Start Top Left
+  ctx.moveTo(cx - boxWidth/2, footerY)
+
+  // Top Arch (Quadratic curve to Top Right)
+  ctx.quadraticCurveTo(cx, footerY - archH, cx + boxWidth/2, footerY)
+
+  // Right Edge to near Bottom Right
+  ctx.lineTo(cx + boxWidth/2, boxBottom - r)
+
+  // Bottom Right Corner
+  ctx.quadraticCurveTo(cx + boxWidth/2, boxBottom, cx + boxWidth/2 - r, boxBottom)
+
+  // Bottom Edge
+  ctx.lineTo(cx - boxWidth/2 + r, boxBottom)
+
+  // Bottom Left Corner
+  ctx.quadraticCurveTo(cx - boxWidth/2, boxBottom, cx - boxWidth/2, boxBottom - r)
+
+  // Close to start
+  ctx.closePath()
+
+  ctx.fill()
+
+  // 2. Horizontal Pinstripes (Texture)
+  ctx.save()
+  ctx.clip() // Clip to the custom footer shape
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)'
+  ctx.lineWidth = 1
+  // Draw lines across the footer
+  // Start slightly higher to cover the arch
+  for(let y = footerY - archH; y < boxBottom; y += 4) {
+      ctx.beginPath()
+      ctx.moveTo(cx - boxWidth/2, y)
+      ctx.lineTo(cx + boxWidth/2, y)
+      ctx.stroke()
+  }
+  ctx.restore()
+
+  // 3. Text
+  ctx.textAlign = 'center'
+  ctx.fillStyle = '#ffffff' // White text
+  ctx.shadowColor = 'rgba(0,0,0,0.2)'
+  ctx.shadowBlur = 2
+
+  // "MADE WITH" - Small, Top, Curved area
+  ctx.font = '700 8px "Helvetica Neue", Arial, sans-serif'
+  ctx.letterSpacing = '1px'
+  // Slight arch simulation for text: just placement for now
+  ctx.fillText("MADE WITH", cx, footerY + 8)
+
+  // "REAL POTATOES" - Larger, Bottom
+  ctx.font = '900 13px "Helvetica Neue", Arial, sans-serif'
+  ctx.letterSpacing = '1px'
+  ctx.fillText("REAL POTATOES", cx, footerY + 24)
+
+  ctx.restore()
+
+  ctx.restore()
+}
+
+function drawWoodTexture(ctx, width, height) {
+  ctx.save()
+  const plankCount = 10
+  const plankW = width / plankCount
+
+  // Use 'soft-light' to blend texture onto the user's base color
+  ctx.globalCompositeOperation = 'soft-light'
+
+  for (let i = 0; i < plankCount; i++) {
+    const x = i * plankW
+    // Alternate darkness for planks
+    ctx.fillStyle = i % 2 === 0 ? '#000000' : '#ffffff'
+    ctx.globalAlpha = 0.15 // Subtle
+    ctx.fillRect(x, 0, plankW, height)
+
+    // Seams
+    ctx.globalAlpha = 0.3
+    ctx.fillStyle = '#000000'
+    ctx.fillRect(x, 0, 2, height)
+  }
+
+  // Wood Grain
+  ctx.globalAlpha = 0.1
+  ctx.strokeStyle = '#000000'
+  ctx.lineWidth = 3
+  for (let x = 0; x < width; x += 12) {
+     if (Math.random() > 0.6) {
+       ctx.beginPath()
+       ctx.moveTo(x, 0)
+       // Wobbly line
+       ctx.bezierCurveTo(x + 5, height/3, x - 5, height*2/3, x, height)
+       ctx.stroke()
+     }
+  }
+  ctx.restore()
+}
+
+function drawCenterHighlight(ctx, width, height, cx) {
+  // "rectangle across the full height at the front in white with an opacity of rougly 25% ish"
+  ctx.save()
+  const stripW = width * 0.08 // Central visual area
+  ctx.fillStyle = '#ffffff'
+  ctx.globalAlpha = 0.25
+  ctx.globalCompositeOperation = 'source-over' // Just simple overlay
+  ctx.fillRect(cx - stripW/2, 0, stripW, height)
+
+  // Add stitched/dashed lines on the edges
+  ctx.globalAlpha = 0.6
+  ctx.strokeStyle = '#ffffff'
+  ctx.lineWidth = 2
+  ctx.setLineDash([8, 8]) // Dashed line pattern
+
+  // Left Line
+  ctx.beginPath()
+  ctx.moveTo(cx - stripW/2 + 4, 0)
+  ctx.lineTo(cx - stripW/2 + 4, height)
+  ctx.stroke()
+
+  // Right Line
+  ctx.beginPath()
+  ctx.moveTo(cx + stripW/2 - 4, 0)
+  ctx.lineTo(cx + stripW/2 - 4, height)
+  ctx.stroke()
+
+  ctx.setLineDash([]) // Reset
+  ctx.restore()
+}
+
+function drawTopDetails(ctx, width, height, cx) {
+  ctx.save()
+  ctx.fillStyle = '#ffffff'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.font = '700 16px "Helvetica Neue", Arial, sans-serif'
+  // Shadow for legibility
+  ctx.shadowColor = 'rgba(0,0,0,0.5)'
+  ctx.shadowBlur = 4
+
+  const y = height * 0.15
+  const spacing = width * 0.13
+
+  // Left: No Colors
+  ctx.fillText("NO COLORS", cx - spacing, y - 10)
+  ctx.font = '14px "Helvetica Neue", Arial, sans-serif'
+  ctx.fillText("from", cx - spacing, y + 2)
+  ctx.font = '700 16px "Helvetica Neue", Arial, sans-serif'
+  ctx.fillText("ARTIFICIAL SOURCES", cx - spacing, y + 14)
+
+  // Right: No Artificial
+  ctx.fillText("NO", cx + spacing, y - 8)
+  ctx.fillText("ARTIFICIAL", cx + spacing, y + 8)
+  ctx.font = 'italic 16px "Times New Roman", serif'
+  ctx.fillText("Flavors", cx + spacing, y + 24)
+
+  // Center: Est 1938
+  const bannerY = y
+  ctx.fillStyle = '#000000' // Black text
+
+  ctx.font = '700 14px "Helvetica Neue", Arial, sans-serif'
+  ctx.fillText("-EST.-", cx, bannerY - 8)
+  ctx.font = '900 20px "Helvetica Neue", Arial, sans-serif'
+  ctx.fillText("1938", cx, bannerY + 10)
+
+  ctx.restore()
+}
+
+function drawFlavorBox(ctx, width, height, cx) {
+  // Partial height box under logo
+  const stripW = width * 0.2
+  const boxY = height * 0.3
+  const boxH = height * 0.3
+
+  ctx.save()
+  // Cream colored box
+  ctx.fillStyle = '#fdfbf7'
+  ctx.shadowColor = 'rgba(0,0,0,0.2)'
+  ctx.shadowBlur = 20
+  ctx.shadowOffsetY = 5
+
+  ctx.beginPath()
+  if (ctx.roundRect) {
+    ctx.roundRect(cx - stripW/2, boxY, stripW, boxH, 20)
+  } else {
+    ctx.rect(cx - stripW/2, boxY, stripW, boxH)
+  }
+  ctx.fill()
+
+  // Thin pinstripes on the box (classic Lays look)
+  ctx.strokeStyle = 'rgba(0,0,0,0.05)'
+  ctx.lineWidth = 1
+  for(let x = cx - stripW/2 + 10; x < cx + stripW/2; x+=10) {
+    ctx.beginPath()
+    ctx.moveTo(x, boxY)
+    ctx.lineTo(x, boxY + boxH)
+    ctx.stroke()
+  }
 
   ctx.restore()
 }
@@ -568,6 +799,9 @@ async function updateBagAppearance() {
   ctx.fillStyle = normalizeColor(props.color)
   ctx.fillRect(0, 0, width, height)
 
+  // Apply Bag Wood Texture (Base Layer)
+  drawWoodTexture(ctx, width, height)
+
   // Draw Rear Graphics - Back of bag
   // Note: Vite serves 'public' at root
   const backsideEl = await loadImageElement('/assets/lays-backside.png')
@@ -586,6 +820,18 @@ async function updateBagAppearance() {
 
 
   drawPattern(ctx, props.pattern, width, height)
+
+  // --- Rebrand: Layers ---
+  const centerX = width * 0.75
+
+  // 1. Center Highlight (25% White)
+  drawCenterHighlight(ctx, width, height, centerX)
+
+  // 2. Top Details (Text)
+  drawTopDetails(ctx, width, height, centerX)
+
+  // 3. Flavor Box (Cream Panel)
+  drawFlavorBox(ctx, width, height, centerX)
 
     // --- Draw User Image (Backdrop) ---
   const imageEl = await loadImageElement(props.image)
@@ -635,7 +881,7 @@ async function updateBagAppearance() {
   if (token !== updateToken) return
 
   if (logoEl) {
-    const logoScale = 0.2 // Reduced size to 20%
+    const logoScale = 0.25 // Reduced size to 20%
     const logoAspectRatio = logoEl.width / logoEl.height
     const drawW = width * logoScale
     const drawH = drawW / logoAspectRatio
@@ -643,12 +889,12 @@ async function updateBagAppearance() {
     // Align X with label (0.75) - matching other assets
     const cx = width * 0.75
     const dx = cx - drawW / 2
-    const dy = height * 0.22
+    const dy = height * 0.18 // Moved up from 0.22
 
     ctx.drawImage(logoEl, dx, dy, drawW, drawH)
   }
 
-  drawLabel(ctx, props.name, props.font, width, height, props.labelPosition)
+  drawLabel(ctx, props.name, props.font, width, height, props.labelPosition, props.color)
 
 
 
@@ -681,13 +927,36 @@ watch(
   () => updateBagAppearance(),
   { immediate: true },
 )
-function captureSnapshot(quality = 0.8, type = 'image/jpeg') {
+function captureSnapshot(quality = 0.8, type = 'image/png') {
   if (!renderer || !scene || !camera) return null
 
-  // Force a render in the current state to ensure the buffer is populated
+  // 1. Save current state
+  const savedPos = camera.position.clone()
+  const savedQuat = camera.quaternion.clone()
+
+  // 2. Prepare for snapshot
+  // Keep background (User Request)
+
+  // Force Front-Facing & Centered View
+  // Reset camera to perfect front angle
+  // 3.5 is an empirical value for a tight crop on the bag at 0,0,0
+  camera.position.set(0, 0, 3.5)
+  camera.lookAt(0, 0, 0)
+  camera.updateMatrixWorld()
+
+  // 3. Render
+  renderer.render(scene, camera)
+  const dataUrl = renderer.domElement.toDataURL(type, quality)
+
+  // 4. Restore state
+  camera.position.copy(savedPos)
+  camera.quaternion.copy(savedQuat)
+  camera.updateMatrixWorld()
+
+  // 5. Re-render to restore view
   renderer.render(scene, camera)
 
-  return renderer.domElement.toDataURL(type, quality)
+  return dataUrl
 }
 
 defineExpose({
@@ -708,6 +977,4 @@ defineExpose({
   margin: 0;
   box-sizing: border-box;
 }
-
-
 </style>

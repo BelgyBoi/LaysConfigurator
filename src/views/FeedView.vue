@@ -4,70 +4,49 @@ import { getAllBags, voteForBag } from '../services/bagService';
 
 const bags = ref([]);
 const isLoading = ref(true);
-const error = ref('');
-
-const fetchBags = async () => {
-  try {
-    isLoading.value = true;
-    const data = await getAllBags();
-    // Ensure we have an array
-    bags.value = Array.isArray(data) ? data : (data.lays || []);
-  } catch (err) {
-    error.value = "Failed to load the flavor feed. " + err.message;
-  } finally {
-    isLoading.value = false;
-  }
-};
-
-const handleVote = async (bag) => {
-  try {
-    if (bag.hasVoted) {
-      // "Unvote" - Visual only since API doesn't support untoggle
-      bag.votes = Math.max(0, (bag.votes || 0) - 1);
-      bag.hasVoted = false;
-      return;
-    }
-
-    // Vote
-    bag.votes = (bag.votes || 0) + 1;
-    bag.hasVoted = true;
-
-    await voteForBag(bag._id);
-  } catch (err) {
-    // If error is "Bad Request" (400), it likely means user already voted.
-    // We treat this as a success for the UI state so they can toggle it back on.
-    const isAlreadyVotedError = err.message.includes("Bad Request") || err.message.includes("400");
-
-    if (isAlreadyVotedError) {
-      // Do not revert. Ensure state is consistent.
-      bag.hasVoted = true;
-      // Optionally sync vote count if needed, but keeping optimistic +1 is fine
-    } else {
-      // Revert on real failures
-      if (bag.hasVoted) {
-        bag.votes = Math.max(0, (bag.votes || 0) - 1);
-        bag.hasVoted = false;
-      }
-      alert("Could not register vote: " + err.message);
-    }
-  }
-};
-
-const getBagColor = (colorName) => {
-  // Map common colors to CSS variables or hex
-  const map = {
-    'red': '#ec2e2e',
-    'blue': '#05a8df',
-    'green': '#0dab4e',
-    'orange': '#f79324',
-    'yellow': '#f8e503'
-  };
-  return map[colorName?.toLowerCase()] || '#f8e503'; // Default to yellow
-};
+const error = ref(null);
 
 onMounted(() => {
   fetchBags();
 });
+
+async function fetchBags() {
+  try {
+    isLoading.value = true;
+    const data = await getAllBags();
+    bags.value = Array.isArray(data) ? data : (data.lays || []);
+  } catch (err) {
+    error.value = "Failed to load the flavor feed. " + err.message;
+    console.error(err);
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+async function handleVote(bag) {
+  if (bag.hasVoted) return; // Prevent double voting locally
+  try {
+    // Optimistic update
+    bag.votes = (bag.votes || 0) + 1;
+    bag.hasVoted = true;
+    bag.justVoted = true;
+
+    const updatedBag = await voteForBag(bag._id);
+    // Update local state with actual data from server
+    if (updatedBag && typeof updatedBag.votes === 'number') {
+      bag.votes = updatedBag.votes;
+    }
+
+    setTimeout(() => bag.justVoted = false, 1000);
+  } catch (e) {
+    console.error("Vote failed", e);
+    // Revert optimistic update on failure
+    bag.votes = Math.max(0, (bag.votes || 0) - 1);
+    bag.hasVoted = false;
+    bag.justVoted = false;
+    alert("Could not register vote.");
+  }
+}
 </script>
 
 <template>
@@ -76,12 +55,11 @@ onMounted(() => {
 
     <div class="content-wrapper">
       <header class="feed-header">
-        <h1>Flavor Battle</h1>
-        <p>Vote for the next big Lays sensation!</p>
+        <h1>Flavor Feed</h1>
       </header>
 
       <div v-if="isLoading" class="loading-state">
-        <div class="spinner"></div> <!-- Custom chip spinner? -->
+        <div class="spinner"></div>
         <p>Frying up the feed...</p>
       </div>
 
@@ -90,45 +68,78 @@ onMounted(() => {
         <button @click="fetchBags" class="retry-btn">Try Again</button>
       </div>
 
-      <div v-else class="bags-grid">
-        <div
+      <div v-else class="feed-stream">
+        <article
           v-for="bag in bags"
           :key="bag._id"
-          class="bag-card"
+          class="social-card"
         >
-          <div class="bag-preview" :style="{ backgroundColor: getBagColor(bag.dominantColor) }">
-            <div class="bag-logo">
-              <img src="/assets/logo-lays.png" alt="Lays" />
+          <!-- 1. Header -->
+          <div class="card-header">
+            <div class="user-avatar-placeholder">
+              {{ (bag.creator || 'L').charAt(0).toUpperCase() }}
             </div>
-            <div class="bag-flavor-name">{{ bag.name || 'Mystery Flavor' }}</div>
-            <div class="bag-chip-decor"></div>
+            <div class="header-info">
+              <span class="username">{{ bag.creator || 'Lays Fan' }}</span>
+              <span class="location" v-if="bag.packaging">Configured on {{ bag.packaging }} packaging</span>
+            </div>
           </div>
 
-          <div class="bag-info">
-            <h3>{{ bag.name || 'Unnamed' }}</h3>
-            <p class="creator">by {{ bag.creator || 'Anonymous' }}</p>
+          <!-- 2. Media -->
+          <div class="card-media" @dblclick="handleVote(bag)">
+            <div class="fit-container">
+               <template v-if="bag.image">
+                  <img :src="bag.image" alt="Bag Preview" class="social-image" />
+               </template>
+               <div v-else class="css-bag-only">
+                 <div class="bag-logo">
+                   <img src="/assets/logo-lays.png" alt="Lays" />
+                 </div>
+               </div>
 
-            <div class="vote-action">
-              <span class="vote-count">
-                <span class="count">{{ bag.votes || 0 }}</span> votes
-              </span>
+               <div class="heart-overlay" :class="{ 'animate': bag.justVoted }">❤️</div>
+            </div>
+          </div>
+
+          <!-- 3. Actions -->
+          <div class="card-actions">
+            <div class="likes-count">
+              <strong>{{ bag.votes || 0 }} likes</strong>
+            </div>
+            <div class="action-buttons">
               <button
                 @click="handleVote(bag)"
-                class="vote-btn-wrapper"
-                :class="{ 'voted': bag.hasVoted }"
-                title="Vote for this flavor"
+                class="action-btn"
+                :class="{ 'liked': bag.hasVoted }"
+                title="Like"
               >
-                <div class="vote-icon-container">
-                  <img src="/assets/logo-lays.png" alt="Vote" />
-                </div>
-                <span class="vote-label">{{ bag.hasVoted ? 'Voted!' : 'Vote' }}</span>
+                <svg v-if="bag.hasVoted" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#ed4956" width="28" height="28"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="28" height="28"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
               </button>
             </div>
           </div>
-        </div>
+
+          <!-- 4. Caption & Details -->
+          <div class="card-caption">
+            <div class="caption-text">
+              <span class="username">{{ bag.creator || 'Lays Fan' }}</span>
+              <span class="flavor-name">✨ {{ bag.name || 'Mystery Flavor' }}</span>
+              <br>
+              <span class="inspiration" v-if="bag.inspiration">
+                {{ bag.inspiration }}
+              </span>
+            </div>
+
+            <div class="key-flavors" v-if="bag.keyFlavours && bag.keyFlavours.length">
+              <span v-for="flavour in bag.keyFlavours" :key="flavour" class="hashtag">
+                #{{ flavour.replace(/\s+/g, '') }}
+              </span>
+            </div>
+          </div>
+        </article>
       </div>
 
-      <!-- Empty State if no bags -->
+      <!-- Empty State -->
       <div v-if="!isLoading && !error && bags.length === 0" class="empty-state">
         <p>No flavors yet! Be the first to create one.</p>
         <router-link to="/" class="create-btn">Create Flavor</router-link>
@@ -138,257 +149,243 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* Main Layout similar to Auth */
 .feed-container {
   min-height: 100vh;
   width: 100%;
-  background-color: #f8e503;
-  background-image: repeating-conic-gradient(
-    from 0deg,
-    #f8e503 0deg 15deg,
-    #ffd400 15deg 30deg
-  );
-  position: relative;
+  background-color: #fafafa;
   overflow-y: auto;
-  overflow-x: hidden;
   padding-bottom: 4rem;
 }
 
-.light-effect {
-  position: fixed;
-  top: 0; left: 0; width: 100%; height: 100%;
-  pointer-events: none;
-  background: radial-gradient(circle at 50% 10%, rgba(255, 255, 255, 0.4) 0%, transparent 60%);
-  animation: pulse-light 5s ease-in-out infinite alternate;
-}
-
-@keyframes pulse-light {
-  0% { transform: scale(1); opacity: 0.5; }
-  100% { transform: scale(1.1); opacity: 0.8; }
-}
-
 .content-wrapper {
-  position: relative;
-  z-index: 1;
-  max-width: 1200px;
+  max-width: 500px; /* Stream/Phone width */
   margin: 0 auto;
-  padding: 2rem;
+  padding: 2rem 0; /* No side padding for full-bleed mobile look */
 }
 
 .feed-header {
   text-align: center;
-  margin-bottom: 3rem;
-  color: #424244;
+  margin-bottom: 2rem;
+  padding: 0 1rem;
 }
 
 .feed-header h1 {
-  font-size: 3.5rem;
-  font-weight: 800;
+  font-family: 'Pacifico', cursive; /* Or the app's script font */
+  font-size: 2rem;
+  color: #1f1f1f;
   margin: 0;
-  text-shadow: 2px 2px 0px rgba(255,255,255,0.5);
 }
 
-.feed-header p {
-  font-size: 1.2rem;
-  font-weight: 600;
-  opacity: 0.8;
-}
-
-/* Grid */
-.bags-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 2.5rem;
-}
-
-/* Bag Card Layout */
-.bag-card {
+/* Social Card */
+.social-card {
   background: white;
-  border-radius: 24px;
+  border: 1px solid #dbdbdb;
+  border-radius: 8px; /* Slightly rounded */
+  margin-bottom: 20px;
   overflow: hidden;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
-  border: none;
   display: flex;
   flex-direction: column;
 }
 
-.bag-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+/* 1. Header */
+.card-header {
+  display: flex;
+  align-items: center;
+  padding: 14px;
+  gap: 12px;
 }
 
-/* 1. Brand Logo */
-.card-brand {
-  text-align: center;
-  padding-top: 1.5rem;
+.user-avatar-placeholder {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: #eee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  color: rgba(0,0,0,0.5);
+  border: 1px solid rgba(0,0,0,0.1);
 }
 
-.card-brand img {
-  width: 60px;
-  height: auto;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
-}
-
-/* 2. Text Header */
-.bag-header {
-  padding: 0.5rem 1.2rem 1rem;
-  text-align: center; /* Center the text to match logo */
-}
-
-.bag-header h3 {
-  margin: 0;
-  font-size: 1.4rem;
-  font-weight: 800;
-  color: var(--text-color);
+.header-info {
+  display: flex;
+  flex-direction: column;
   line-height: 1.2;
 }
 
-.creator {
-  color: #888;
-  font-size: 0.9rem;
+.username {
   font-weight: 600;
-  margin-top: 0.3rem;
-  margin-bottom: 0;
+  font-size: 14px;
+  color: #262626;
+  text-decoration: none;
 }
 
-/* 3. Preview Area (The Image Stack) */
-.bag-preview {
-  height: 320px; /* Taller, more prominent */
+.location {
+  font-size: 12px;
+  color: #8e8e8e;
+}
+
+/* 2. Media */
+.card-media {
+  width: 100%;
+  padding-top: 125%; /* 4:5 Aspect Ratio */
+  position: relative;
+  background-color: #f8e503;
+  overflow: hidden;
+  cursor: grab; /* Indicates interactive */
+}
+
+.card-media:active {
+  cursor: grabbing;
+}
+
+.fit-container {
+  position: absolute; /* Match parent */
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: #f8e503;
+}
+
+/* 3D Scene */
+.scene-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: #f8e503;
+}
+
+/* Static Preview */
+.static-preview {
+  width: 100%;
+  height: 100%;
   position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
-  background-color: #f0f0f0;
-  overflow: hidden;
-  margin: 0; /* Full width */
-  border-bottom: 1px solid #eee;
 }
 
-.bag-real-image {
+.social-image {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  padding: 15px;
-  transition: transform 0.5s ease;
+  filter: drop-shadow(0 10px 20px rgba(0,0,0,0.15));
+  /* No hover effect needed as it usually transitions to 3D instantly */
 }
 
-.bag-card:hover .bag-real-image {
-  transform: scale(1.1);
-}
-
-/* CSS Fallback (Just the color/decor) */
+/* CSS Fallback */
 .css-bag-only {
   width: 100%;
   height: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
-  /* Subtle gradient to show it's a "surface" */
-  background-image: linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(0,0,0,0.05) 100%);
+  flex-direction: column;
+  gap: 20px;
 }
+.bag-logo img { width: 100px; opacity: 0.6; }
 
-.bag-chip-decor {
-  /* Simple potato chip shape/decor if no image */
-  width: 60px;
-  height: 60px;
-  background-color: rgba(255,255,255,0.3);
-  border-radius: 50%;
-  box-shadow: 0 0 20px rgba(0,0,0,0.1);
-}
-
-/* 3. Footer */
-.bag-footer {
-  padding: 1rem 1.2rem 1.5rem;
-  background: white;
-}
-
-.vote-action {
+/* 3. Actions */
+.card-actions {
+  padding: 10px 14px 0;
   display: flex;
-  justify-content: space-between;
+  flex-direction: row; /* Horizontal */
+  justify-content: space-between; /* Space out */
   align-items: center;
+  gap: 8px;
 }
 
-.vote-count {
-  font-weight: 700;
-  color: var(--blue);
+.action-buttons {
+  order: 2; /* Move to right */
 }
 
-.vote-count .count {
-  font-size: 1.2rem;
+.likes-count {
+  font-size: 14px;
+  color: #262626;
+  order: 1; /* Move to left */
 }
 
-/* Vote Button Redesign */
-.vote-btn-wrapper {
+.action-btn {
   background: none;
-  border: none;
-  padding: 8px 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border-radius: 50px;
-  transition: background-color 0.2s;
-}
-
-.vote-btn-wrapper:hover {
-  background-color: #f9f9f9;
-}
-
-.vote-icon-container {
-  width: 48px;
-  height: 48px;
+  border: 1px solid #dbdbdb; /* Outlined */
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.vote-icon-container img {
-  width: 100%;
-  height: auto;
-  filter: grayscale(100%);
-  opacity: 0.5;
-  transition: all 0.3s ease;
+.action-btn:hover {
+  background-color: #f0f0f0;
+  border-color: #c0c0c0;
 }
 
-.vote-btn-wrapper:hover .vote-icon-container {
-  transform: scale(1.1);
+.action-btn.liked {
+  border-color: #ed4956;
+  background-color: #fff0f1;
 }
 
-.vote-btn-wrapper:hover .vote-icon-container img {
-  opacity: 0.8;
+.action-btn:active {
+  transform: scale(0.9);
 }
 
-.vote-label {
-  font-size: 1rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  color: #9ca3af; /* Gray initially */
-  transition: color 0.3s ease;
-  letter-spacing: 0.05em;
+.action-btn.liked svg {
+  animation: heart-burst 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
-/* Active State */
-.vote-btn-wrapper.voted .vote-icon-container {
-  transform: scale(1.1);
-}
-
-.vote-btn-wrapper.voted .vote-icon-container img {
-  filter: grayscale(0%);
-  opacity: 1;
-  filter: drop-shadow(0 0 8px rgba(255, 212, 0, 0.6));
-  animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-.vote-btn-wrapper.voted .vote-label {
-  color: #ec2e2e; /* Lays Red */
-}
-
-@keyframes pop {
-  0% { transform: scale(0.8); }
-  50% { transform: scale(1.4); }
+@keyframes heart-burst {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.3); }
   100% { transform: scale(1); }
+}
+
+/* 4. Caption */
+.card-caption {
+  padding: 8px 14px 16px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.flavor-name {
+  font-weight: 700;
+  margin-left: 6px;
+  color: #262626;
+}
+
+.inspiration {
+  display: block;
+  margin-top: 4px;
+  color: #444;
+}
+
+.key-flavors {
+  margin-top: 8px;
+  color: #00376b;
+  font-size: 14px;
+}
+
+.hashtag {
+  margin-right: 6px;
+  cursor: pointer;
+}
+
+.hashtag:hover {
+  text-decoration: underline;
+}
+
+/* Heart Overlay Animation */
+.heart-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  font-size: 80px;
+  pointer-events: none;
+  opacity: 0;
+  transition: all 0.3s;
 }
 
 /* Loading/Error */

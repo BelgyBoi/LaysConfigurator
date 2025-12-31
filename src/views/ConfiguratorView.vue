@@ -48,10 +48,12 @@ async function handleSubmit() {
     // Capture the 3D snapshot from the preview component
     let snapshotImage = null
     if (bagPreviewRef.value) {
-      // Capture at high res first, then downscale
-      const rawSnapshot = bagPreviewRef.value.captureSnapshot(0.9, 'image/jpeg')
+      // Capture High Res WebP (Transparent, better compression)
+      const rawSnapshot = bagPreviewRef.value.captureSnapshot(1.0, 'image/webp')
       if (rawSnapshot) {
-        snapshotImage = await resizeDataURL(rawSnapshot, 800, 0.8)
+        // Resize and use WebP
+        // Reduced to 450px to prevent payload too large even with WebP
+        snapshotImage = await resizeDataURL(rawSnapshot, 450, 0.85, 'image/webp')
       }
     }
 
@@ -65,7 +67,8 @@ async function handleSubmit() {
       packaging: bag.packaging,
       inspiration: bag.inspiration,
       keyFlavours: bag.keyFlavours,
-      image: snapshotImage || bag.imageData || null
+      image: snapshotImage || bag.imageData || null, // The feed preview
+      // textureImage removed to save payload size (3D feed reverted)
     }
 
     await createBag(payload)
