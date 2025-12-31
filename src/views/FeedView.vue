@@ -21,15 +21,35 @@ const fetchBags = async () => {
 
 const handleVote = async (bag) => {
   try {
-    // Optimistic update
+    if (bag.hasVoted) {
+      // "Unvote" - Visual only since API doesn't support untoggle
+      bag.votes = Math.max(0, (bag.votes || 0) - 1);
+      bag.hasVoted = false;
+      return;
+    }
+
+    // Vote
     bag.votes = (bag.votes || 0) + 1;
+    bag.hasVoted = true;
 
     await voteForBag(bag._id);
-    // Ideally we'd update with the server response, but optimistic is snappier
   } catch (err) {
-    // Revert on failure
-    bag.votes = Math.max(0, (bag.votes || 0) - 1);
-    alert("Could not register vote: " + err.message);
+    // If error is "Bad Request" (400), it likely means user already voted.
+    // We treat this as a success for the UI state so they can toggle it back on.
+    const isAlreadyVotedError = err.message.includes("Bad Request") || err.message.includes("400");
+
+    if (isAlreadyVotedError) {
+      // Do not revert. Ensure state is consistent.
+      bag.hasVoted = true;
+      // Optionally sync vote count if needed, but keeping optimistic +1 is fine
+    } else {
+      // Revert on real failures
+      if (bag.hasVoted) {
+        bag.votes = Math.max(0, (bag.votes || 0) - 1);
+        bag.hasVoted = false;
+      }
+      alert("Could not register vote: " + err.message);
+    }
   }
 };
 
@@ -92,8 +112,16 @@ onMounted(() => {
               <span class="vote-count">
                 <span class="count">{{ bag.votes || 0 }}</span> votes
               </span>
-              <button @click="handleVote(bag)" class="vote-btn">
-                Vote
+              <button
+                @click="handleVote(bag)"
+                class="vote-btn-wrapper"
+                :class="{ 'voted': bag.hasVoted }"
+                title="Vote for this flavor"
+              >
+                <div class="vote-icon-container">
+                  <img src="/assets/logo-lays.png" alt="Vote" />
+                </div>
+                <span class="vote-label">{{ bag.hasVoted ? 'Voted!' : 'Vote' }}</span>
               </button>
             </div>
           </div>
@@ -169,25 +197,25 @@ onMounted(() => {
 /* Grid */
 .bags-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 2rem;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 2.5rem;
 }
 
 /* Bag Card Layout */
 .bag-card {
   background: white;
-  border-radius: 20px;
+  border-radius: 24px;
   overflow: hidden;
-  box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-  border: 4px solid white;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+  border: none;
   display: flex;
   flex-direction: column;
 }
 
 .bag-card:hover {
-  transform: translateY(-10px);
-  box-shadow: 0 15px 30px rgba(0,0,0,0.2);
+  transform: translateY(-8px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
 /* 1. Brand Logo */
@@ -226,16 +254,15 @@ onMounted(() => {
 
 /* 3. Preview Area (The Image Stack) */
 .bag-preview {
-  height: 150px; /* Reduced height to force a landscape 'box' aspect ratio */
+  height: 320px; /* Taller, more prominent */
   position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
   background-color: #f0f0f0;
   overflow: hidden;
-  margin: 0 1.2rem; /* Indent side margins to frame it inside the card */
-  border-radius: 12px; /* Rounded corners for the "box" look */
-  border: 1px solid #ddd;
+  margin: 0; /* Full width */
+  border-bottom: 1px solid #eee;
 }
 
 .bag-real-image {
@@ -291,26 +318,77 @@ onMounted(() => {
   font-size: 1.2rem;
 }
 
-.vote-btn {
-  background: var(--red);
-  color: white;
+/* Vote Button Redesign */
+.vote-btn-wrapper {
+  background: none;
   border: none;
-  padding: 8px 20px;
-  border-radius: 20px;
+  padding: 8px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 50px;
+  transition: background-color 0.2s;
+}
+
+.vote-btn-wrapper:hover {
+  background-color: #f9f9f9;
+}
+
+.vote-icon-container {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.vote-icon-container img {
+  width: 100%;
+  height: auto;
+  filter: grayscale(100%);
+  opacity: 0.5;
+  transition: all 0.3s ease;
+}
+
+.vote-btn-wrapper:hover .vote-icon-container {
+  transform: scale(1.1);
+}
+
+.vote-btn-wrapper:hover .vote-icon-container img {
+  opacity: 0.8;
+}
+
+.vote-label {
+  font-size: 1rem;
   font-weight: 800;
   text-transform: uppercase;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 4px 10px rgba(236, 46, 46, 0.3);
+  color: #9ca3af; /* Gray initially */
+  transition: color 0.3s ease;
+  letter-spacing: 0.05em;
 }
 
-.vote-btn:hover {
-  transform: scale(1.05);
-  box-shadow: 0 6px 15px rgba(236, 46, 46, 0.4);
+/* Active State */
+.vote-btn-wrapper.voted .vote-icon-container {
+  transform: scale(1.1);
 }
 
-.vote-btn:active {
-  transform: scale(0.95);
+.vote-btn-wrapper.voted .vote-icon-container img {
+  filter: grayscale(0%);
+  opacity: 1;
+  filter: drop-shadow(0 0 8px rgba(255, 212, 0, 0.6));
+  animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.vote-btn-wrapper.voted .vote-label {
+  color: #ec2e2e; /* Lays Red */
+}
+
+@keyframes pop {
+  0% { transform: scale(0.8); }
+  50% { transform: scale(1.4); }
+  100% { transform: scale(1); }
 }
 
 /* Loading/Error */

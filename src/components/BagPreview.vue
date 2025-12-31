@@ -122,7 +122,8 @@ onMounted(() => {
   camera.position.set(0, 0.5, 2)
 
   // ---- 3) Renderer ----
-  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+  // preserveDrawingBuffer is required to capture the canvas dataURL
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true })
   renderer.setPixelRatio(window.devicePixelRatio || 1)
   renderer.setSize(width, height)
   renderer.outputColorSpace = THREE.SRGBColorSpace
@@ -680,6 +681,18 @@ watch(
   () => updateBagAppearance(),
   { immediate: true },
 )
+function captureSnapshot(quality = 0.8, type = 'image/jpeg') {
+  if (!renderer || !scene || !camera) return null
+
+  // Force a render in the current state to ensure the buffer is populated
+  renderer.render(scene, camera)
+
+  return renderer.domElement.toDataURL(type, quality)
+}
+
+defineExpose({
+  captureSnapshot
+})
 </script>
 
 <template>

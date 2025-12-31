@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { logout } from './services/authService'
+import { wakeUpApi } from './services/bagService'
 
 const navRef = ref(null)
 const router = useRouter()
@@ -13,6 +14,7 @@ const handleLogout = () => {
 }
 
 onMounted(() => {
+  wakeUpApi()
   if (navRef.value) {
     const height = navRef.value.offsetHeight
     document.documentElement.style.setProperty('--nav-height', `${height}px`)

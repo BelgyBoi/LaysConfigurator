@@ -9,6 +9,18 @@ const router = createRouter({
   routes: [
     {
       path: '/', // http://localhost:5173/
+      name: 'signin', // internal name, can be anything
+      component: SignInView,
+      meta: { hideNavigation: true },
+    },
+    {
+      path: '/signup',
+      name: 'signup',
+      component: SignUpView,
+      meta: { hideNavigation: true },
+    },
+    {
+      path: '/configurator', // http://localhost:5173/
       name: 'configurator', // internal name, can be anything
       component: ConfiguratorView,
       meta: { requiresAuth: true },
@@ -18,18 +30,6 @@ const router = createRouter({
       name: 'feed',
       component: FeedView,
       meta: { requiresAuth: true },
-    },
-    {
-      path: '/signin',
-      name: 'signin',
-      component: SignInView,
-      meta: { hideNavigation: true },
-    },
-    {
-      path: '/signup',
-      name: 'signup',
-      component: SignUpView,
-      meta: { hideNavigation: true },
     },
   ],
 })

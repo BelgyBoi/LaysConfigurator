@@ -29,6 +29,7 @@ const presetColors = [
 const isColorPickerOpen = ref(false)
 const tempColor = ref(bag.bagColor)
 const imageInputRef = ref(null)
+const bagPreviewRef = ref(null)
 
 async function handleSubmit() {
   if (!bag.name) {
@@ -44,7 +45,15 @@ async function handleSubmit() {
       .map((flavour) => flavour.trim())
       .filter(Boolean)
 
+    // Capture the 3D snapshot from the preview component
+    let snapshotImage = null
+    if (bagPreviewRef.value) {
+      // Capture at decent quality
+      snapshotImage = bagPreviewRef.value.captureSnapshot(0.8, 'image/jpeg')
+    }
+
     // Prepare payload for API
+    // We send the 3D snapshot as the main image so the Feed looks correct.
     const payload = {
       name: bag.name,
       bagColor: bag.bagColor,
@@ -53,7 +62,7 @@ async function handleSubmit() {
       packaging: bag.packaging,
       inspiration: bag.inspiration,
       keyFlavours: bag.keyFlavours,
-      image: bag.imageData || null
+      image: snapshotImage || bag.imageData || null
     }
 
     await createBag(payload)
@@ -104,15 +113,62 @@ function handleImageChange(event) {
     return
   }
 
-  bag.imageFile = file
-  bag.imageName = file.name
+  // Resize and compress image
+  resizeImage(file, 800, 0.8)
+    .then((resizedDataUrl) => {
+      bag.imageFile = file // Keep original file ref if needed, but data is what matters
+      bag.imageName = file.name
+      bag.imageData = resizedDataUrl
+    })
+    .catch((err) => {
+      console.error("Image resize error:", err)
+      alert("Failed to process image")
+    })
+}
 
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    const result = e.target?.result
-    bag.imageData = typeof result === 'string' ? result : ''
-  }
-  reader.readAsDataURL(file)
+function resizeImage(file, maxWidth, quality) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        let width = img.width
+        let height = img.height
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height *= maxWidth / width
+            width = maxWidth
+          }
+        } else {
+          if (height > maxWidth) {
+            width *= maxWidth / height
+            height = maxWidth
+          }
+        }
+
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+
+        // Ensure canvas is clear for transparency
+        ctx.clearRect(0, 0, width, height)
+        ctx.drawImage(img, 0, 0, width, height)
+
+        // Preserve transparency for PNGs
+        if (file.type === 'image/png') {
+          resolve(canvas.toDataURL('image/png'))
+        } else {
+          resolve(canvas.toDataURL('image/jpeg', quality))
+        }
+      }
+      img.onerror = reject
+      img.src = e.target.result
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
 }
 
 function clearImage() {
@@ -134,6 +190,7 @@ function clearImage() {
     <div class="configurator__layout">
       <div class="preview-panel">
         <BagPreview
+          ref="bagPreviewRef"
           :color="bag.bagColor"
           :pattern="bag.pattern"
           :packaging="bag.packaging"

@@ -67,10 +67,10 @@ export async function createBag(bagData) {
  */
 export async function voteForBag(bagId) {
   try {
-    const response = await fetch(`${API_BASE_URL}/bag/${bagId}/vote`, {
+    const response = await fetch(`${API_BASE_URL}/vote/${bagId}`, {
       method: "POST",
       headers: getAuthHeaders()
-    });
+    })
 
     if (!response.ok) {
       throw new Error(`Failed to vote: ${response.statusText}`);
@@ -80,5 +80,26 @@ export async function voteForBag(bagId) {
   } catch (error) {
     console.error("Vote Error:", error);
     throw error;
+  }
+}
+
+/**
+ * Pings the API to wake it up from cold sleep.
+ * @returns {Promise<void>}
+ */
+export async function wakeUpApi() {
+  try {
+    // We use a simple GET request to a public endpoint or one that doesn't need much processing.
+    // getAllBags is a good candidate if it's not too heavy, otherwise just hitting the base URL might work depending on API configuration.
+    // Here we'll just fire off a request to getAllBags but catch any error and ignore the result.
+    // Ideally, there would be a specific /health endpoint.
+    await fetch(`${API_BASE_URL}/bag`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" }
+    });
+    console.log("Wake-up call sent to API");
+  } catch {
+    // We ignore errors here because this is just a best-effort wake-up call
+    console.log("Wake-up call attempted (API might be waking up)");
   }
 }
