@@ -391,7 +391,7 @@ function drawLabel(ctx, text, fontKey, width, height, pos, bagColor) {
   let startY = height * 0.43
 
   // Main Flavor Name
-  ctx.fillStyle = '#1f2937' // Dark Grey/Black for contrast
+  ctx.fillStyle = bagColor || '#1f2937' // Use bag color instead of dark grey
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   // Font: Bold Condensed Sans
@@ -548,10 +548,12 @@ function drawCenterHighlight(ctx, width, height, cx) {
   // "rectangle across the full height at the front in white with an opacity of rougly 25% ish"
   ctx.save()
   const stripW = width * 0.08 // Central visual area
+  const stripH = height * 0.3 // Stop behind the logo (logo is at ~0.2)
+
   ctx.fillStyle = '#ffffff'
   ctx.globalAlpha = 0.25
   ctx.globalCompositeOperation = 'source-over' // Just simple overlay
-  ctx.fillRect(cx - stripW/2, 0, stripW, height)
+  ctx.fillRect(cx - stripW/2, 0, stripW, stripH)
 
   // Add stitched/dashed lines on the edges
   ctx.globalAlpha = 0.6
@@ -562,13 +564,13 @@ function drawCenterHighlight(ctx, width, height, cx) {
   // Left Line
   ctx.beginPath()
   ctx.moveTo(cx - stripW/2 + 4, 0)
-  ctx.lineTo(cx - stripW/2 + 4, height)
+  ctx.lineTo(cx - stripW/2 + 4, stripH)
   ctx.stroke()
 
   // Right Line
   ctx.beginPath()
   ctx.moveTo(cx + stripW/2 - 4, 0)
-  ctx.lineTo(cx + stripW/2 - 4, height)
+  ctx.lineTo(cx + stripW/2 - 4, stripH)
   ctx.stroke()
 
   ctx.setLineDash([]) // Reset
@@ -588,18 +590,38 @@ function drawTopDetails(ctx, width, height, cx) {
   const y = height * 0.15
   const spacing = width * 0.13
 
+  // Helper to draw flanked lines
+  const drawFlankedText = (text, x, y, font, gap = 15, lineW = 20) => {
+    ctx.font = font
+    const w = ctx.measureText(text).width
+    ctx.fillText(text, x, y)
+
+    ctx.lineWidth = 1
+    ctx.strokeStyle = '#ffffff'
+    ctx.beginPath()
+    // Left Line
+    ctx.moveTo(x - w/2 - gap - lineW, y)
+    ctx.lineTo(x - w/2 - gap, y)
+    // Right Line
+    ctx.moveTo(x + w/2 + gap, y)
+    ctx.lineTo(x + w/2 + gap + lineW, y)
+    ctx.stroke()
+  }
+
   // Left: No Colors
-  ctx.fillText("NO COLORS", cx - spacing, y - 10)
-  ctx.font = '14px "Helvetica Neue", Arial, sans-serif'
-  ctx.fillText("from", cx - spacing, y + 2)
-  ctx.font = '700 16px "Helvetica Neue", Arial, sans-serif'
-  ctx.fillText("ARTIFICIAL SOURCES", cx - spacing, y + 14)
+  ctx.strokeStyle = '#ffffff'
+  ctx.fillText("NO COLORS", cx - spacing, y - 12) // Moved up slightly
+  // Flanked "from"
+  drawFlankedText("from", cx - spacing, y + 4, 'italic 13px "Helvetica Neue", Arial, sans-serif') // Slightly smaller font, more space
+
+  ctx.font = '700 14px "Helvetica Neue", Arial, sans-serif' // Reduced from 16px
+  ctx.fillText("ARTIFICIAL SOURCES", cx - spacing, y + 20) // Increased gap (was +14)
 
   // Right: No Artificial
   ctx.fillText("NO", cx + spacing, y - 8)
   ctx.fillText("ARTIFICIAL", cx + spacing, y + 8)
-  ctx.font = 'italic 16px "Times New Roman", serif'
-  ctx.fillText("Flavors", cx + spacing, y + 24)
+  // Flanked "Flavors"
+  drawFlankedText("Flavors", cx + spacing, y + 24, 'italic 16px "Times New Roman", serif')
 
   // Center: Est 1938
   const bannerY = y
@@ -830,9 +852,6 @@ async function updateBagAppearance() {
   // 2. Top Details (Text)
   drawTopDetails(ctx, width, height, centerX)
 
-  // 3. Flavor Box (Cream Panel)
-  drawFlavorBox(ctx, width, height, centerX)
-
     // --- Draw User Image (Backdrop) ---
   const imageEl = await loadImageElement(props.image)
   if (token !== updateToken) return
@@ -874,6 +893,9 @@ async function updateBagAppearance() {
     ctx.drawImage(imageEl, dx, dy, drawW, drawH)
     ctx.restore()
   }
+
+  // 3. Flavor Box (Cream Panel)
+  drawFlavorBox(ctx, width, height, centerX)
 
   // --- Draw Static Lays Logo ---
   // Note: Vite serves 'public' at root, so path is /assets/...
