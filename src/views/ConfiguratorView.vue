@@ -48,21 +48,7 @@ async function handleSubmit() {
       .map((flavour) => flavour.trim())
       .filter(Boolean)
 
-    // Capture the 3D snapshot from the preview component
-    let snapshotImage = null
-    if (bagPreviewRef.value) {
-      // Capture High Res WebP (Transparent, better compression)
-      const rawSnapshot = bagPreviewRef.value.captureSnapshot(1.0, 'image/webp')
-      if (rawSnapshot) {
-        // Resize and use WebP
-        // Reduced to 450px to prevent payload too large even with WebP
-        snapshotImage = await resizeDataURL(rawSnapshot, 450, 0.85, 'image/webp')
-      }
-    }
-
     // Prepare payload for API
-    // We send the 3D snapshot as the main image so the Feed looks correct (legacy support)
-    // but the Feed will primarily use metadata for 2D rendering now.
     const payload = {
       name: bag.name,
       bagColor: bag.bagColor,
@@ -71,7 +57,9 @@ async function handleSubmit() {
       packaging: bag.packaging,
       inspiration: bag.inspiration,
       keyFlavours: bag.keyFlavours,
-      image: snapshotImage || bag.imageData || null,
+      // Save the processed original image (resized)
+      // The user wants 'processorImage' to be the configurator element (bag.imageData)
+      image: bag.imageData || null,
     }
 
     if (route.params.id) {
@@ -127,7 +115,7 @@ function handleImageChange(event) {
   }
 
   // Resize and compress image
-  resizeImage(file, 800, 0.8)
+  resizeImage(file, 512, 0.7)
     .then((resizedDataUrl) => {
       bag.imageFile = file // Keep original file ref if needed, but data is what matters
       bag.imageName = file.name
@@ -217,6 +205,12 @@ async function loadBag(id) {
         bag.keyFlavoursText = Array.isArray(bagData.keyFlavours)
           ? bagData.keyFlavours.join(', ')
           : (bagData.keyFlavours || '')
+        // Load existing image if any
+        if (bagData.image) {
+           bag.imageData = bagData.image
+           // We don't have the original file object or name, but that's okay for preview/saving
+           bag.imageName = 'Existing Image'
+        }
       }
     } catch (e) {
       console.error("Failed to load bag", e)
@@ -251,7 +245,7 @@ function handleBagSelect(selectedBag) {
             :packaging="bag.packaging"
             :name="bag.name"
             :font="bag.font"
-            :image="null"
+            :image="bag.imageData"
             :read-only="false"
             :show-background="true"
             content-mode="studio"
