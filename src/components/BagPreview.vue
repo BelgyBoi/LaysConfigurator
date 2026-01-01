@@ -1047,7 +1047,7 @@ function getSnapshot() {
   renderer.render(scene, camera)
 
   // Create a smaller canvas for the snapshot
-  const maxDimension = 100 // Aggressively reduced to 100px (thumbnail only)
+  const maxDimension = 600 // Restored to 600px (Server limit increased to 50MB)
   const originalCanvas = renderer.domElement
 
   const aspect = originalCanvas.width / originalCanvas.height
@@ -1073,9 +1073,8 @@ function getSnapshot() {
   // Draw the 3D canvas onto the temp canvas
   ctx.drawImage(originalCanvas, 0, 0, width, height)
 
-  // Capture as JPEG with compression (0.4 quality)
-  // JPEG is much smaller than PNG for complex 3D scenes
-  return tempCanvas.toDataURL('image/jpeg', 0.4)
+  // Capture as JPEG with good quality (0.8)
+  return tempCanvas.toDataURL('image/jpeg', 0.8)
 }
 
 

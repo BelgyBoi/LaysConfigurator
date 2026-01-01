@@ -43,7 +43,11 @@ function selectBag(bag) {
             @click="selectBag(bag)"
           >
             <div class="bag-thumb">
-              <img v-if="bag.snapshot || bag.image" :src="bag.snapshot || bag.image" alt="Bag" />
+              <img
+                v-if="bag.snapshot"
+                :src="bag.snapshot"
+                alt="Bag"
+              />
               <div v-else class="placeholder-thumb">🍟</div>
             </div>
             <div class="bag-info">
