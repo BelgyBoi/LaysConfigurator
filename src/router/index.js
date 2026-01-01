@@ -20,7 +20,7 @@ const router = createRouter({
       meta: { hideNavigation: true },
     },
     {
-      path: '/configurator', // http://localhost:5173/
+      path: '/configurator/:id?', // http://localhost:5173/configurator/123
       name: 'configurator', // internal name, can be anything
       component: ConfiguratorView,
       meta: { requiresAuth: true },

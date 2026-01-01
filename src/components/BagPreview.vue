@@ -36,25 +36,53 @@ const props = defineProps({
   imagePosition: {
     type: Object, default: () => ({ x: .75, y: 0.55 })
   },
+  readOnly: {
+    type: Boolean,
+    default: false
+  },
+  autoRotate: {
+    type: Boolean,
+    default: false
+  },
+  showBackground: {
+    type: Boolean,
+    default: true
+  },
+  contentMode: {
+    type: String,
+    default: 'studio' // 'studio' (configurator) or 'shelf' (feed)
+  }
 })
 
 // --- SCENE CONFIGURATION ---
-// Adjust these values to change the spatial positioning
-const sceneSettings = {
-  bag: {
-    offsetX: -0.5,    // Shift left/right (negative is left)
-    offsetY: 0,    // Shift up/down relative to calculated bottom
-    rotationY: 0.25,   // Spin (Yaw)
-    rotationX: 0.1,     // Tilt Forward/Back (Pitch)
-    rotationZ: 0.18,   // Tilt Sideways (Roll)
+const sceneDefaults = {
+  studio: {
+    bag: {
+      offsetX: -0.5,
+      offsetY: 0, // Original lower position
+      rotationY: 0.25,
+      rotationX: 0.1,
+      rotationZ: 0.18
+    },
+    camera: {
+      fov: 55,
+      startZFactor: 1.2,
+      centerY: 0.05
+    }
   },
-  environment: {
-    rotationY: Math.PI / 1.85, // Rotate the HDRI background
-  },
-  camera: {
-    fov: 55,          // Field of view (lower = zoomed in background)
-    startZFactor: 1.2,  // Multiplier for auto-distance calculation
-    centerY: 0.05      // Height factor (multiplier of object size). Higher = see more floor, less ceiling
+  shelf: {
+    bag: {
+      offsetX: 0,
+      offsetY: 0,
+      rotationY: 0,
+      rotationX: 0,
+      rotationZ: 0
+    },
+    camera: {
+      fov: 45,
+      startZFactor: 0.8,
+      centerY: 0
+    }
   }
 }
 
@@ -77,7 +105,7 @@ function onMouseDown(e) {
 }
 
 function onMouseMove(e) {
-  if (!isDragging || !bag) return
+  if (props.readOnly || !isDragging || !bag) return
   const deltaX = e.clientX - previousMousePosition.x
   const deltaY = e.clientY - previousMousePosition.y
   previousMousePosition = { x: e.clientX, y: e.clientY }
@@ -118,7 +146,7 @@ onMounted(() => {
   const height = container.clientHeight || 400
 
   // ---- 2) Camera ----
-  camera = new THREE.PerspectiveCamera(sceneSettings.camera.fov, width / height, 0.1, 100)
+  camera = new THREE.PerspectiveCamera(sceneDefaults.shelf.camera.fov, width / height, 0.1, 100) // Use a default for initial camera setup
   camera.position.set(0, 0.5, 2)
 
   // ---- 3) Renderer ----
@@ -160,6 +188,7 @@ onMounted(() => {
     (gltf) => {
       bag = gltf.scene
 
+      const settings = sceneDefaults[props.contentMode] || sceneDefaults.studio
 
       // --- auto-center & frame the bag ---
       const box = new THREE.Box3().setFromObject(bag)
@@ -170,16 +199,15 @@ onMounted(() => {
 
       const maxSize = Math.max(size.x, size.y, size.z)
 
-      const fovRad = camera.fov * (Math.PI / 180)
-      const distance = Math.abs(maxSize / (2 * Math.tan(fovRad / 2))) * sceneSettings.camera.startZFactor
+      const fovRad = settings.camera.fov * (Math.PI / 180)
+      const distance = Math.abs(maxSize / (2 * Math.tan(fovRad / 2))) * settings.camera.startZFactor
 
-      camera.position.set(0, maxSize * sceneSettings.camera.centerY, distance)
+      camera.fov = settings.camera.fov
+      camera.position.set(0, maxSize * settings.camera.centerY, distance)
       camera.near = distance / 100
       camera.far = distance * 10
-      camera.far = distance * 10
       camera.updateProjectionMatrix()
-      camera.lookAt(0, 0, 0) // Look at standard center to tilt camera down
-
+      camera.lookAt(0, 0, 0)
 
 
       // --- override all materials to flat gray ---
@@ -204,19 +232,22 @@ onMounted(() => {
 
       scene.add(bag)
 
-      // Apply offsets and rotation
-      // We use += so we don't lose the auto-centering adjustment
-      bag.position.x += sceneSettings.bag.offsetX
-      bag.position.y += sceneSettings.bag.offsetY
-      bag.rotation.y = sceneSettings.bag.rotationY
-      bag.rotation.x = sceneSettings.bag.rotationX
-      bag.rotation.z = sceneSettings.bag.rotationZ
+      // Apply Initial Transforms based on Mode
+      bag.position.x += settings.bag.offsetX
+      bag.position.y += settings.bag.offsetY
+      bag.rotation.y = settings.bag.rotationY
+      bag.rotation.x = settings.bag.rotationX
+      bag.rotation.z = settings.bag.rotationZ
 
       // (Controls removed)
 
       // --- animation loop (no auto-spin, just controls + render) ---
       const animate = () => {
         animationId = requestAnimationFrame(animate)
+
+        if (props.autoRotate && bag) {
+             bag.rotation.y += 0.005 // Slow spin
+        }
 
         renderer.render(scene, camera)
       }
@@ -235,11 +266,17 @@ onMounted(() => {
     (texture) => {
       texture.mapping = THREE.EquirectangularReflectionMapping
       scene.environment = texture
-      scene.background = texture
+
+      if (props.showBackground) {
+         scene.background = texture
+      } else {
+         scene.background = null // Transparent/Clear
+      }
+
 
       // Rotate background to show the neon lights behind the bag
-      scene.backgroundRotation.y = sceneSettings.environment.rotationY
-      scene.environmentRotation.y = sceneSettings.environment.rotationY
+      scene.backgroundRotation.y = Math.PI / 1.85
+      scene.environmentRotation.y = Math.PI / 1.85
 
       renderer.toneMapping = THREE.NeutralToneMapping
       renderer.toneMappingExposure = 1.0

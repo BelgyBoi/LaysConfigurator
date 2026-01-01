@@ -1,12 +1,15 @@
 <script setup>
-import { reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { reactive, ref, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { Chrome } from '@ckpack/vue-color'
 import BagPreview from '@/components/BagPreview.vue'
-import { createBag } from '@/services/bagService'
+import MyBagsModal from '@/components/MyBagsModal.vue'
+import { createBag, getBagById, updateBag } from '@/services/bagService'
 
 const router = useRouter()
+const route = useRoute()
 const isSaving = ref(false)
+const showMyBags = ref(false)
 
 const bag = reactive({
   name: '',
@@ -58,7 +61,8 @@ async function handleSubmit() {
     }
 
     // Prepare payload for API
-    // We send the 3D snapshot as the main image so the Feed looks correct.
+    // We send the 3D snapshot as the main image so the Feed looks correct (legacy support)
+    // but the Feed will primarily use metadata for 2D rendering now.
     const payload = {
       name: bag.name,
       bagColor: bag.bagColor,
@@ -67,11 +71,14 @@ async function handleSubmit() {
       packaging: bag.packaging,
       inspiration: bag.inspiration,
       keyFlavours: bag.keyFlavours,
-      image: snapshotImage || bag.imageData || null, // The feed preview
-      // textureImage removed to save payload size (3D feed reverted)
+      image: snapshotImage || bag.imageData || null,
     }
 
-    await createBag(payload)
+    if (route.params.id) {
+        await updateBag(route.params.id, payload)
+    } else {
+        await createBag(payload)
+    }
 
     // Redirect to feed on success
     router.push('/feed')
@@ -189,25 +196,66 @@ function clearImage() {
     imageInputRef.value.value = ''
   }
 }
+
+onMounted(async () => {
+  if (route.params.id) {
+    await loadBag(route.params.id)
+  }
+})
+
+async function loadBag(id) {
+    try {
+      const bagData = await getBagById(id)
+      if (bagData) {
+        // Populate state
+        bag.name = bagData.name
+        bag.bagColor = bagData.bagColor
+        bag.font = bagData.font || 'sans'
+        bag.pattern = bagData.pattern || ''
+        bag.packaging = bagData.packaging || 'matte'
+        bag.inspiration = bagData.inspiration || ''
+        bag.keyFlavoursText = Array.isArray(bagData.keyFlavours)
+          ? bagData.keyFlavours.join(', ')
+          : (bagData.keyFlavours || '')
+      }
+    } catch (e) {
+      console.error("Failed to load bag", e)
+      alert("Could not load bag details")
+    }
+}
+
+function handleBagSelect(selectedBag) {
+  showMyBags.value = false
+  // Update URL and load
+  router.push({ name: 'configurator', params: { id: selectedBag._id } })
+  // Force load if router doesn't re-mount (same view)
+  loadBag(selectedBag._id)
+}
 </script>
 
 <template>
   <div class="configurator">
+    <div class="top-bar">
+      <button class="button button--sm" @click="showMyBags = true">📂 My Bags</button>
+    </div>
     <!-- <header class="configurator__header">
       <p class="eyebrow">Lays configurator</p>
     </header> -->
 
     <div class="configurator__layout">
       <div class="preview-panel">
-        <BagPreview
-          ref="bagPreviewRef"
-          :color="bag.bagColor"
-          :pattern="bag.pattern"
-          :packaging="bag.packaging"
-          :image="bag.imageData"
-          :name="bag.name"
-          :font="bag.font"
-        />
+          <BagPreview
+            ref="bagPreviewRef"
+            :color="bag.bagColor"
+            :pattern="bag.pattern"
+            :packaging="bag.packaging"
+            :name="bag.name"
+            :font="bag.font"
+            :image="null"
+            :read-only="false"
+            :show-background="true"
+            content-mode="studio"
+          />
       </div>
 
       <form class="config-form">
@@ -316,6 +364,12 @@ function clearImage() {
         </div>
       </div>
     </div>
+
+    <MyBagsModal
+      v-if="showMyBags"
+      @close="showMyBags = false"
+      @select="handleBagSelect"
+    />
   </div>
 </template>
 
@@ -328,6 +382,20 @@ function clearImage() {
   flex-direction: column;
   height: 100%;
   position: relative;
+}
+
+.top-bar {
+  position: absolute;
+  top: 10px;
+  right: 170px; /* Position next to/above form, avoids obscuring header */
+  z-index: 5;
+}
+
+.button--sm {
+  padding: 6px 12px;
+  font-size: 13px;
+  background: white;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
 .configurator__header {

@@ -34,6 +34,45 @@ export async function getAllBags() {
 }
 
 /**
+ * Gets bags for the current user.
+ * Performs client-side filtering as API returns all bags.
+ * @returns {Promise<Array>} List of user's bags.
+ */
+export async function getMyBags() {
+    try {
+        const allBags = await getAllBags();
+        const bagsList = Array.isArray(allBags) ? allBags : (allBags.lays || []);
+
+        const userInfoStr = localStorage.getItem('user_info');
+        if (!userInfoStr) return [];
+
+        const user = JSON.parse(userInfoStr);
+        const userId = user.id || user._id; // Handle both id formats if unsure
+        const userName = user.firstName ? `${user.firstName} ${user.lastName}` : null;
+
+        if (!userId) return [];
+
+        return bagsList.filter(bag => {
+            // Check by creator ID if available (ideal)
+            if (bag.creatorId && bag.creatorId === userId) return true;
+            // Fallback: Check by creator Name (less reliable but might be what we have)
+            // Note: API might not return creatorId on the bag object, check FeedView usage.
+            // FeedView uses: bag.creator (name string)
+            // We should check if we can match by name if ID isn't there.
+            if (userName && bag.creator === userName) return true;
+
+             // If the API returns a 'user' field with _id
+            if (bag.user && (bag.user === userId || bag.user._id === userId)) return true;
+
+            return false;
+        });
+    } catch (error) {
+        console.error("Get My Bags Error:", error);
+        throw error;
+    }
+}
+
+/**
  * Creates a new bag.
  * @param {Object} bagData
  * @returns {Promise<Object>} Created bag.
@@ -56,6 +95,56 @@ export async function createBag(bagData) {
     return await response.json();
   } catch (error) {
     console.error("Create Bag Error:", error);
+    throw error;
+  }
+}
+
+/**
+ * Updates an existing bag.
+ * @param {string} id
+ * @param {Object} bagData
+ * @returns {Promise<Object>} Updated bag.
+ */
+export async function updateBag(id, bagData) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/bag/${id}`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(bagData)
+    });
+
+    if (!response.ok) {
+       const errorBody = await response.json().catch(() => ({}));
+       const message = errorBody.message || response.statusText;
+       throw new Error(`Failed to update bag: ${message}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Update Bag Error:", error);
+    throw error;
+  }
+}
+
+/**
+ * Gets a specific bag by ID.
+ * @param {string} id
+ * @returns {Promise<Object>} Bag details.
+ */
+export async function getBagById(id) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/bag/${id}`, {
+      headers: getAuthHeaders()
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to fetch bag: ${response.statusText}`);
+    }
+
+    const json = await response.json();
+    return json.data || json;
+  } catch (error) {
+    console.error("Get Bag Error:", error);
     throw error;
   }
 }
