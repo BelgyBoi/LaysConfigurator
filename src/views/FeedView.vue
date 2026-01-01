@@ -1,11 +1,12 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { getAllBags, voteForBag, unvoteBag, getUserVotes } from '../services/bagService';
 import BagPreview from '@/components/BagPreview.vue';
 
 const bags = ref([]);
 const isLoading = ref(true);
 const error = ref(null);
+let pollingInterval = null;
 
 // Pagination / Carousel Logic
 const ITEMS_PER_PAGE = 3
@@ -32,23 +33,10 @@ function prevPage() {
   if (hasPrev.value) currentPage.value--
 }
 
-async function fetchBags() {
-  isLoading.value = true;
-  error.value = null;
-  try {
-    // Fetch bags and user votes in parallel
-    const [bagsData, userVotes] = await Promise.all([
-      getAllBags(),
-      getUserVotes()
-    ]);
-
-    console.log("Fetched Bags:", bagsData);
-    console.log("User Votes:", userVotes);
-
+function processBagsData(bagsData, userVotes) {
     const votesSet = new Set(userVotes);
 
-    // Sort by votes (most votes first)
-    bags.value = Array.isArray(bagsData)
+    return Array.isArray(bagsData)
       ? bagsData.map(bag => {
           // Construct creator name
           let creatorName = 'Lays Fan';
@@ -67,11 +55,56 @@ async function fetchBags() {
           };
         }).sort((a, b) => (b.votes || 0) - (a.votes || 0))
       : [];
+}
+
+async function fetchBags(isBackground = false) {
+  if (!isBackground) {
+      isLoading.value = true;
+      error.value = null;
+  }
+
+  try {
+    // Fetch bags and user votes in parallel
+    const [bagsData, userVotes] = await Promise.all([
+      getAllBags(),
+      getUserVotes()
+    ]);
+
+    const newBags = processBagsData(bagsData, userVotes);
+
+    if (isBackground) {
+        // Smart Update: Only update if data changed to avoid UI jitter/re-renders
+        // We strip out 'isVoting' temporary state before comparison to avoid race conditions
+        const cleanCurrent = bags.value.map(bag => {
+            const b = { ...bag };
+            delete b.isVoting;
+            return b;
+        });
+        const cleanNew = newBags.map(bag => {
+             const b = { ...bag };
+             delete b.isVoting;
+             return b;
+        });
+
+        // Simple JSON comparison serves as a deep equals for this data structure
+        if (JSON.stringify(cleanCurrent) !== JSON.stringify(cleanNew)) {
+             bags.value = newBags;
+        }
+    } else {
+        bags.value = newBags;
+    }
+
   } catch (err) {
-    error.value = "Failed to load the feed. Please try again.";
-    console.error(err);
+    if (!isBackground) {
+        error.value = "Failed to load the feed. Please try again.";
+        console.error(err);
+    } else {
+        console.warn("Background poll failed", err);
+    }
   } finally {
-    isLoading.value = false;
+    if (!isBackground) {
+        isLoading.value = false;
+    }
   }
 }
 
@@ -85,11 +118,9 @@ async function handleVote(bag) {
 
   // Optimistic Update
   if (previousHasVoted) {
-      // Retracting: -1
       bag.hasVoted = false;
       bag.votes = Math.max(0, previousVotes - 1);
   } else {
-      // Voting: +1
       bag.hasVoted = true;
       bag.votes = previousVotes + 1;
   }
@@ -97,33 +128,28 @@ async function handleVote(bag) {
   try {
     let updatedBag;
     if (previousHasVoted) {
-        // We are retracting -> DELETE
         updatedBag = await unvoteBag(bag._id);
-        // Note: DELETE might return the updated bag or just { success: true }
-        // If it returns the bag, use it. If not, our optimistic update holds.
     } else {
-        // We are voting -> POST
         updatedBag = await voteForBag(bag._id);
     }
 
-    // Sync with server response if available
     if (updatedBag) {
-        // API might return 'votes' or 'voteCount'
         if (typeof updatedBag.voteCount === 'number') {
              bag.votes = updatedBag.voteCount;
         } else if (typeof updatedBag.votes === 'number') {
             bag.votes = updatedBag.votes;
         }
-        // Sync hasVoted if server provides it
         if (typeof updatedBag.hasVoted === 'boolean') {
             bag.hasVoted = updatedBag.hasVoted;
         }
     }
+
+    // Refresh list to ensure correct sorting
+    fetchBags(true);
+
   } catch (e) {
     console.error("Vote failed", e);
 
-    // Specific Handling for "Limit Reached" or "Already Voted"
-    // If we assume 400 means "Limit Reached" for a vote action:
     if (!previousHasVoted && e.message && (e.message.includes('400') || e.message.includes('limit'))) {
         alert("You might have reached your voting limit, or you already voted for this!");
     }
@@ -136,10 +162,16 @@ async function handleVote(bag) {
   }
 }
 
-// editBag function removed as it is no longer used in the feed
-
 onMounted(() => {
   fetchBags();
+
+  pollingInterval = setInterval(() => {
+    fetchBags(true);
+  }, 3000); // Poll every 3 seconds
+});
+
+onUnmounted(() => {
+    if (pollingInterval) clearInterval(pollingInterval);
 });
 </script>
 
