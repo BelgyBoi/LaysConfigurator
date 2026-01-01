@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
-import { getAllBags, voteForBag } from '../services/bagService';
+import { getAllBags, voteForBag, unvoteBag, getUserVotes } from '../services/bagService';
 import BagPreview from '@/components/BagPreview.vue';
 
 const bags = ref([]);
@@ -36,9 +36,37 @@ async function fetchBags() {
   isLoading.value = true;
   error.value = null;
   try {
-    const data = await getAllBags();
+    // Fetch bags and user votes in parallel
+    const [bagsData, userVotes] = await Promise.all([
+      getAllBags(),
+      getUserVotes()
+    ]);
+
+    console.log("Fetched Bags:", bagsData);
+    console.log("User Votes:", userVotes);
+
+    const votesSet = new Set(userVotes);
+
     // Sort by votes (most votes first)
-    bags.value = Array.isArray(data) ? data.sort((a, b) => (b.votes || 0) - (a.votes || 0)) : [];
+    bags.value = Array.isArray(bagsData)
+      ? bagsData.map(bag => {
+          // Construct creator name
+          let creatorName = 'Lays Fan';
+          if (bag.user && bag.user.firstName) {
+              creatorName = `${bag.user.firstName} ${bag.user.lastName || ''}`.trim();
+          } else if (bag.creator) {
+              creatorName = bag.creator;
+          }
+
+          return {
+            ...bag,
+            creatorName, // Add formatted name
+            hasVoted: votesSet.has(bag._id),
+            // Map API's voteCount to local 'votes' property
+            votes: bag.voteCount !== undefined ? bag.voteCount : (bag.votes || 0)
+          };
+        }).sort((a, b) => (b.votes || 0) - (a.votes || 0))
+      : [];
   } catch (err) {
     error.value = "Failed to load the feed. Please try again.";
     console.error(err);
@@ -48,29 +76,63 @@ async function fetchBags() {
 }
 
 async function handleVote(bag) {
-  // Allow toggling (Optimistic UI)
-  const wasVoted = bag.hasVoted;
+  if (bag.isVoting) return;
+  bag.isVoting = true;
 
-  // Toggle state
-  bag.hasVoted = !wasVoted;
-  bag.votes = (bag.votes || 0) + (bag.hasVoted ? 1 : -1);
-  bag.justVoted = bag.hasVoted;
+  // Store previous state for rollback
+  const previousHasVoted = bag.hasVoted;
+  const previousVotes = Number(bag.votes) || 0;
 
-  if (bag.justVoted) {
-      setTimeout(() => bag.justVoted = false, 1000);
+  // Optimistic Update
+  if (previousHasVoted) {
+      // Retracting: -1
+      bag.hasVoted = false;
+      bag.votes = Math.max(0, previousVotes - 1);
+  } else {
+      // Voting: +1
+      bag.hasVoted = true;
+      bag.votes = previousVotes + 1;
   }
 
   try {
-    const updatedBag = await voteForBag(bag._id);
-    // Update real count from server if available
-    if (updatedBag && typeof updatedBag.votes === 'number') {
-      bag.votes = updatedBag.votes;
+    let updatedBag;
+    if (previousHasVoted) {
+        // We are retracting -> DELETE
+        updatedBag = await unvoteBag(bag._id);
+        // Note: DELETE might return the updated bag or just { success: true }
+        // If it returns the bag, use it. If not, our optimistic update holds.
+    } else {
+        // We are voting -> POST
+        updatedBag = await voteForBag(bag._id);
+    }
+
+    // Sync with server response if available
+    if (updatedBag) {
+        // API might return 'votes' or 'voteCount'
+        if (typeof updatedBag.voteCount === 'number') {
+             bag.votes = updatedBag.voteCount;
+        } else if (typeof updatedBag.votes === 'number') {
+            bag.votes = updatedBag.votes;
+        }
+        // Sync hasVoted if server provides it
+        if (typeof updatedBag.hasVoted === 'boolean') {
+            bag.hasVoted = updatedBag.hasVoted;
+        }
     }
   } catch (e) {
     console.error("Vote failed", e);
-    // Revert optimistic update
-    bag.hasVoted = wasVoted;
-    bag.votes = (bag.votes || 0) + (wasVoted ? 1 : -1);
+
+    // Specific Handling for "Limit Reached" or "Already Voted"
+    // If we assume 400 means "Limit Reached" for a vote action:
+    if (!previousHasVoted && e.message && (e.message.includes('400') || e.message.includes('limit'))) {
+        alert("You might have reached your voting limit, or you already voted for this!");
+    }
+
+    // Revert logic
+    bag.hasVoted = previousHasVoted;
+    bag.votes = previousVotes;
+  } finally {
+    bag.isVoting = false;
   }
 }
 
@@ -86,9 +148,6 @@ onMounted(() => {
     <div class="light-effect"></div>
 
     <div class="content-wrapper">
-      <header class="feed-header">
-        <h1>Flavor Feed</h1>
-      </header>
 
       <div v-if="isLoading" class="loading-state">
         <div class="spinner"></div>
@@ -101,6 +160,10 @@ onMounted(() => {
       </div>
 
       <div v-else class="carousel-container">
+         <button class="nav-btn prev" @click="prevPage" :disabled="!hasPrev" aria-label="Previous Page">
+            &larr;
+         </button>
+
          <div class="shelf-grid">
             <div
               v-for="bag in visibleBags"
@@ -125,30 +188,56 @@ onMounted(() => {
                      <!-- Edit button removed per request -->
                   </div>
                </div>
-               <div class="shelf-label">
-                  <div class="header-row">
-                      <strong>{{ bag.name }}</strong>
-                      <button class="votes-pill" @click.stop="handleVote(bag)">
-                         {{ bag.hasVoted ? '❤️' : '🤍' }} {{ bag.votes || 0 }}
-                      </button>
+               <div class="shelf-info">
+                  <div class="info-block">
+                    <span class="info-header">FLAVOR NAME</span>
+                    <h3 class="bag-title">{{ bag.name }}</h3>
                   </div>
-                  <div class="flavors-row" v-if="bag.keyFlavours && bag.keyFlavours.length">
-                      {{ Array.isArray(bag.keyFlavours) ? bag.keyFlavours.join(', ') : bag.keyFlavours }}
+
+                  <div class="info-block" v-if="bag.keyFlavours && bag.keyFlavours.length">
+                    <span class="info-header">TASTING NOTES</span>
+                    <div class="flavor-pills-container">
+                        <span
+                            class="flavor-pill"
+                            v-for="(flavor, idx) in (Array.isArray(bag.keyFlavours) ? bag.keyFlavours : [])"
+                            :key="idx"
+                        >
+                            {{ flavor }}
+                        </span>
+                         <!-- Fallback for string -->
+                        <span v-if="!Array.isArray(bag.keyFlavours)" class="flavor-pill">
+                            {{ bag.keyFlavours }}
+                        </span>
+                    </div>
                   </div>
-                  <span class="author">by {{ bag.creator || 'Lays Fan' }}</span>
+
+                  <div class="info-block chef-block">
+                     <span class="info-header">CHEF</span>
+                     <p class="creator-name">{{ bag.creatorName }}</p>
+                  </div>
+               </div>
+
+               <div class="card-footer">
+                  <button
+                    class="vote-action-btn"
+                    :class="{ voted: bag.hasVoted }"
+                    @click.stop="handleVote(bag)"
+                  >
+                     <span class="icon">{{ bag.hasVoted ? '❤️' : '🤍' }}</span>
+                     <span class="text">{{ bag.hasVoted ? 'VOTED' : 'VOTE THIS' }}</span>
+                     <span class="count">{{ bag.votes || 0 }}</span>
+                  </button>
                </div>
             </div>
          </div>
 
-         <!-- Controls -->
-         <div class="carousel-controls">
-            <button class="nav-btn prev" @click="prevPage" :disabled="!hasPrev">
-               &larr; Previous Shelf
-            </button>
+         <button class="nav-btn next" @click="nextPage" :disabled="!hasNext" aria-label="Next Page">
+            &rarr;
+         </button>
+
+         <!-- Page Indicator moved to bottom context -->
+         <div class="carousel-footer">
             <span class="page-indicator">Page {{ currentPage + 1 }}</span>
-            <button class="nav-btn next" @click="nextPage" :disabled="!hasNext">
-               Next Shelf &rarr;
-            </button>
          </div>
       </div>
 
@@ -161,12 +250,17 @@ onMounted(() => {
   </div>
 </template>
 
+
 <style scoped>
 .feed-container {
   min-height: 100vh;
   width: 100%;
-  background: radial-gradient(circle at top left, #fff9c4, #fff); /* Subtle yellow burst */
-  background-size: cover;
+  background: #fdfcee; /* Creamy "Lay's Potato" background */
+  background-image:
+    radial-gradient(#e6e1d3 1px, transparent 1px),
+    radial-gradient(#e6e1d3 1px, transparent 1px);
+  background-size: 20px 20px;
+  background-position: 0 0, 10px 10px;
   overflow-y: auto;
   padding-bottom: 4rem;
 }
@@ -179,60 +273,85 @@ onMounted(() => {
 
 .feed-header {
   text-align: center;
-  margin-bottom: 2rem;
+  margin-bottom: 3rem;
   padding: 0 1rem;
 }
 
 .feed-header h1 {
   font-family: 'Pacifico', cursive;
-  font-size: 2rem;
-  color: #1f1f1f;
-  margin: 0;
+  font-size: 3.5rem;
+  color: #bf202f; /* Darker Lay's Red */
+  text-shadow: 3px 3px 0px #fff;
+  margin: 0 0 0.5rem 0;
+  transform: rotate(-2deg);
 }
 
-/* Light effect removed */
+.subtitle {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #1f1f1f;
+  margin: 0;
+  opacity: 0.8;
+}
 
 /* Shelf Grid */
 .carousel-container {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
   position: relative;
   z-index: 1;
+  padding: 0 60px;
 }
 
 .shelf-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 40px;
-  margin-bottom: 40px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 30px;
+  margin-bottom: 20px;
   min-height: 500px;
+}
+
+/* Responsive adjustment */
+@media (max-width: 1100px) {
+  .shelf-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 768px) {
+  .shelf-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .shelf-item {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  perspective: 1000px;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.05); /* Soft card shadow */
+  transition: transform 0.3s;
+  height: 100%; /* Fill grid cell */
+  padding-bottom: 16px; /* Padding for bottom button */
+  overflow: hidden;
+}
+
+.shelf-item:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.1);
 }
 
 .shelf-bag-preview {
   width: 100%;
-  aspect-ratio: 1; /* Square for 3D view */
+  aspect-ratio: 1;
   background: repeating-conic-gradient(
       from 0deg,
       #f8e503 0deg 10deg,
-      #f2b705 10deg 20deg
+      #ffdd00 10deg 20deg
     );
-  border-radius: 20px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+  /* Border radius only on top now since it's a card */
+  border-radius: 20px 20px 0 0;
   position: relative;
   overflow: hidden;
-  transition: transform 0.3s;
-}
-
-.shelf-bag-preview:hover {
-  transform: translateY(-5px) scale(1.02);
-  box-shadow: 0 15px 40px rgba(0,0,0,0.15);
 }
 
 .shelf-overlay {
@@ -270,91 +389,198 @@ onMounted(() => {
   background: #f8e503;
 }
 
-.vote-btn.voted {
-  color: #ed4956;
-}
-
-.shelf-label {
-  margin-top: 16px;
-  text-align: left;
-  width: 100%;
-  padding: 0 8px;
-}
-
-.header-row {
+/* Shelf Info Styling - Flexible & Consistent */
+.shelf-info {
+  flex: 1; /* Pushes footer down */
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 4px;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 24px 0 24px;
+  text-align: left;
 }
 
-.votes-pill {
-  background: #eee;
-  border: none;
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 0.85rem;
+.info-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.info-header {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #999;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.bag-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #1a1a1a;
+  line-height: 1.1;
+  /* Limit to 2 lines for title consistency */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2; /* Standard property */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  height: 3.3rem; /* approx 2 lines */
+}
+
+/* Flavor Pills */
+.flavor-pills-container {
+    display: flex;
+    overflow-x: auto;
+    gap: 8px;
+    padding-bottom: 4px; /* Space for scrollbar if any */
+    /* Hide scrollbar for cleaner look */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    height: 36px; /* Fixed height for pills row */
+    align-items: center;
+}
+.flavor-pills-container::-webkit-scrollbar {
+    display: none;
+}
+
+.flavor-pill {
+    background: #fff7cc; /* Very light yellow */
+    color: #8a6d00;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    white-space: nowrap;
+    border: 1px solid #faeab1;
+}
+
+.creator-name {
+  margin: 0;
+  font-size: 1rem;
   font-weight: 600;
   color: #444;
-  cursor: pointer;
-  transition: background 0.2s;
 }
 
-.votes-pill:hover {
-  background: #e0e0e0;
+.chef-block {
+    margin-bottom: auto; /* Push anything below it further down if needed */
 }
 
-.flavors-row {
-  font-size: 0.9rem;
-  color: #d32f2f; /* Lay's Red or similar accent */
-  font-weight: 600;
-  margin-bottom: 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* Card Footer with Button */
+.card-footer {
+    padding: 20px 24px;
+    margin-top: auto;
 }
 
-.shelf-label strong {
-  font-size: 1.1rem;
-  color: #1f1f1f;
-}
-
-.shelf-label .author {
-  font-size: 0.8rem;
-  color: #888;
-  display: block;
-}
-
-/* Controls */
-.carousel-controls {
+/* Vote Action Button */
+.vote-action-btn {
+  width: 100%;
   display: flex;
-  justify-content: center;
   align-items: center;
-  gap: 20px;
-  margin-top: 40px;
-  padding-bottom: 40px;
+  justify-content: center;
+  gap: 8px;
+  background: white;
+  border: 2px solid #eee;
+  padding: 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.03);
 }
 
-.nav-btn {
-  background: black;
+.vote-action-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+  border-color: #bf202f;
+}
+
+.vote-action-btn .icon {
+  font-size: 1.2rem;
+}
+
+.vote-action-btn .text {
+  font-weight: 800;
+  font-size: 1rem;
+  color: #333;
+  letter-spacing: 0.02em;
+}
+
+.vote-action-btn .count {
+  font-weight: 600;
+  color: #aaa;
+  font-size: 0.9rem;
+  margin-left: auto;
+}
+
+/* Voted State */
+.vote-action-btn.voted {
+  background: #bf202f;
+  border-color: #a01b27;
+}
+
+.vote-action-btn.voted .text,
+.vote-action-btn.voted .count {
   color: white;
+}
+
+/* Nav Buttons */
+.nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 60px;
+  height: 60px;
+  background: white;
+  color: #bf202f;
   border: none;
-  padding: 12px 24px;
-  border-radius: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
   font-weight: bold;
   cursor: pointer;
-  transition: opacity 0.2s;
+  box-shadow: 0 10px 30px rgba(191, 32, 47, 0.2);
+  z-index: 10;
+  transition: all 0.2s;
+}
+
+.nav-btn:hover:not(:disabled) {
+  background: #bf202f;
+  color: white;
+  transform: translateY(-50%) scale(1.1);
+  box-shadow: 0 15px 40px rgba(191, 32, 47, 0.3);
+}
+
+.nav-btn.prev {
+  left: 0;
+}
+
+.nav-btn.next {
+  right: 0;
 }
 
 .nav-btn:disabled {
-  opacity: 0.2;
+  opacity: 0.4;
   cursor: not-allowed;
+  background: #f1f1f1;
+  color: #aaa;
+  box-shadow: none;
+}
+
+.carousel-footer {
+  text-align: center;
+  margin-top: 20px;
 }
 
 .page-indicator {
-  font-weight: 600;
-  color: #666;
-  z-index: 1;
+  font-weight: 700;
+  color: #bf202f;
+  background: white;
+  padding: 6px 16px;
+  border-radius: 20px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+  font-size: 0.9rem;
 }
 
 /* Empty/Loading States */

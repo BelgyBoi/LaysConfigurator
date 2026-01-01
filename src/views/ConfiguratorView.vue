@@ -26,7 +26,7 @@ const bag = reactive({
 })
 
 const presetColors = [
-  "#f8e503", "#ec2e2e", "#f79324", "#0dab4e", "#05a8df", "#f2a007", "#4b5563", "#7f52ff"
+  "#f8e503", "#ec2e2e", "#f79324", "#0dab4e", "#05a8df", "#E30B5C", "#4b5563", "#7f52ff"
 ]
 
 const isColorPickerOpen = ref(false)
@@ -48,6 +48,12 @@ async function handleSubmit() {
       .map((flavour) => flavour.trim())
       .filter(Boolean)
 
+    // Capture 3D Snapshot
+    let snapshotImage = null
+    if (bagPreviewRef.value && bagPreviewRef.value.getSnapshot) {
+        snapshotImage = bagPreviewRef.value.getSnapshot()
+    }
+
     // Prepare payload for API
     const payload = {
       name: bag.name,
@@ -57,9 +63,8 @@ async function handleSubmit() {
       packaging: bag.packaging,
       inspiration: bag.inspiration,
       keyFlavours: bag.keyFlavours,
-      // Save the processed original image (resized)
-      // The user wants 'processorImage' to be the configurator element (bag.imageData)
-      image: bag.imageData || null,
+      // Save the 3D snapshot as the main image
+      image: snapshotImage || bag.imageData || null,
     }
 
     if (route.params.id) {
@@ -229,9 +234,7 @@ function handleBagSelect(selectedBag) {
 
 <template>
   <div class="configurator">
-    <div class="top-bar">
-      <button class="button button--sm" @click="showMyBags = true">📂 My Bags</button>
-    </div>
+    <!-- Header Removed -->
     <!-- <header class="configurator__header">
       <p class="eyebrow">Lays configurator</p>
     </header> -->
@@ -253,6 +256,8 @@ function handleBagSelect(selectedBag) {
       </div>
 
       <form class="config-form">
+        <button class="button button--full" type="button" @click="showMyBags = true">My Bags</button>
+
         <div class="field">
           <label>Bag name</label>
           <input type="text" v-model="bag.name" />
@@ -600,6 +605,19 @@ function handleBagSelect(selectedBag) {
   border: 1px solid #e3a100;
   background: linear-gradient(135deg, #ffcc00, #ff9b00);
   color: #1f1f1f;
+}
+
+
+.button--full {
+  width: 100%;
+  margin-bottom: 12px;
+  background: #f1f2f4;
+  border-color: #d6dbe2;
+  color: #1f1f1f;
+}
+
+.button--full:hover {
+  background: #e2e6eb;
 }
 
 .button--confirm:hover {

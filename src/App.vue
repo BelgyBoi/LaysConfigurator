@@ -28,7 +28,7 @@ onMounted(() => {
       <div class="nav-inner">
         <ul class="nav-links">
           <li><router-link to="/">Configurator</router-link></li>
-          <li><router-link to="/feed">Feed</router-link></li>
+          <li><router-link to="/feed">Vote Now</router-link></li>
         </ul>
 
         <button class="logout-btn" @click="handleLogout">Logout</button>

@@ -173,6 +173,55 @@ export async function voteForBag(bagId) {
 }
 
 /**
+ * Removes a vote for a specific bag.
+ * @param {string} bagId
+ * @returns {Promise<Object>} Result.
+ */
+export async function unvoteBag(bagId) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/vote/${bagId}`, {
+      method: "DELETE",
+      headers: getAuthHeaders()
+    })
+
+    if (!response.ok) {
+       const errorBody = await response.json().catch(() => ({}));
+       const message = errorBody.message || response.statusText;
+       throw new Error(`Failed to unvote: ${message}`);
+    }
+
+    return await response.json().catch(() => ({}));
+  } catch (error) {
+    console.error("Unvote Error:", error);
+    throw error;
+  }
+}
+
+/**
+ * Gets the current user's voting history.
+ * @returns {Promise<Array>} Array of bag IDs the user has voted for.
+ */
+export async function getUserVotes() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/user/votes`, {
+      headers: getAuthHeaders()
+    });
+
+    if (!response.ok) {
+       // If 401/403, just return empty list
+       if (response.status === 401 || response.status === 403) return [];
+       throw new Error(`Failed to fetch user votes: ${response.statusText}`);
+    }
+
+    const json = await response.json();
+    return json.data || json || [];
+  } catch (error) {
+    console.error("Get User Votes Error:", error);
+    return []; // Fail safe to empty array
+  }
+}
+
+/**
  * Pings the API to wake it up from cold sleep.
  * @returns {Promise<void>}
  */

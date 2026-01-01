@@ -1032,8 +1032,23 @@ function captureSnapshot(quality = 0.8, type = 'image/png') {
 }
 
 defineExpose({
-  captureSnapshot
+  captureSnapshot,
+  getSnapshot
 })
+// --- 9) Public API for Snapshot ---
+// We need to render synchronously to capture the buffer
+function getSnapshot() {
+  if (!renderer || !scene || !camera) return null
+
+  // Render one frame to ensure buffer is populated if using preserveDrawingBuffer
+  renderer.render(scene, camera)
+
+  // Capture data URL
+  const dataURL = renderer.domElement.toDataURL('image/png')
+  return dataURL
+}
+
+
 </script>
 
 <template>
