@@ -186,8 +186,8 @@ function resizeImage(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = (e) => {
-      // Force JPEG for compression, ignoring transparency to ensure upload success
-      const type = 'image/jpeg'
+      // Use original file type if it's PNG to preserve transparency, otherwise JPEG
+      const type = file.type === 'image/png' ? 'image/png' : 'image/jpeg'
       resizeDataURL(e.target.result, 300, 0.7, type) // Reduced max width to 300
         .then(resolve)
         .catch(reject)
