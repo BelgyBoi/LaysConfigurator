@@ -1043,9 +1043,36 @@ function getSnapshot() {
   // Render one frame to ensure buffer is populated if using preserveDrawingBuffer
   renderer.render(scene, camera)
 
-  // Capture data URL
-  const dataURL = renderer.domElement.toDataURL('image/png')
-  return dataURL
+  // Create a smaller canvas for the snapshot
+  const maxDimension = 600 // Reasonable size for feed/mobile
+  const originalCanvas = renderer.domElement
+
+  const aspect = originalCanvas.width / originalCanvas.height
+  let width = originalCanvas.width
+  let height = originalCanvas.height
+
+  // Downscale if needed
+  if (width > maxDimension || height > maxDimension) {
+      if (width > height) {
+          width = maxDimension
+          height = width / aspect
+      } else {
+          height = maxDimension
+          width = height * aspect
+      }
+  }
+
+  const tempCanvas = document.createElement('canvas')
+  tempCanvas.width = width
+  tempCanvas.height = height
+  const ctx = tempCanvas.getContext('2d')
+
+  // Draw the 3D canvas onto the temp canvas
+  ctx.drawImage(originalCanvas, 0, 0, width, height)
+
+  // Capture as JPEG with compression (0.8 quality)
+  // JPEG is much smaller than PNG for complex 3D scenes
+  return tempCanvas.toDataURL('image/jpeg', 0.8)
 }
 
 
