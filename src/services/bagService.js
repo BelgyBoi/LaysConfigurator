@@ -1,4 +1,7 @@
-const API_BASE_URL = "/api/v1/default";
+// In production, use the full URL. In dev, use relative path to allow Vite proxy.
+const API_BASE_URL = import.meta.env.PROD
+  ? "https://laysapi-uyjc.onrender.com/api/v1/default"
+  : "/api/v1/default";
 
 /**
  * Gets the auth headers with token.
