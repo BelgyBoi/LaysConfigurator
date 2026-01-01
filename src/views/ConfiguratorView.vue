@@ -48,10 +48,18 @@ async function handleSubmit() {
       .map((flavour) => flavour.trim())
       .filter(Boolean)
 
-    // Capture 3D Snapshot
     let snapshotImage = null
     if (bagPreviewRef.value && bagPreviewRef.value.getSnapshot) {
+        console.log("Attempting to capture snapshot...");
         snapshotImage = bagPreviewRef.value.getSnapshot()
+        console.log("Snapshot result:", snapshotImage ? "DataURL Length: " + snapshotImage.length : "NULL");
+
+        if (!snapshotImage) {
+            alert("Warning: Failed to generate 3D snapshot. The bag will render without a preview.");
+        }
+    } else {
+        console.warn("bagPreviewRef or getSnapshot not available");
+        alert("Internal Error: 3D View not ready for snapshot.");
     }
 
     // Prepare payload for API
@@ -64,8 +72,15 @@ async function handleSubmit() {
       inspiration: bag.inspiration,
       keyFlavours: bag.keyFlavours,
       // Save the 3D snapshot as the main image
-      image: snapshotImage || bag.imageData || null,
+      image: bag.imageData || null,
+      snapshot: snapshotImage || null,
     }
+
+    // Debug Payload Size
+    const payloadSize = JSON.stringify(payload).length;
+    console.log(`Payload Size: ${(payloadSize / 1024).toFixed(2)} KB`);
+    console.log(`Snapshot Size: ${snapshotImage ? (snapshotImage.length / 1024).toFixed(2) : 0} KB`);
+    console.log(`Image Size: ${bag.imageData ? (bag.imageData.length / 1024).toFixed(2) : 0} KB`);
 
     if (route.params.id) {
         await updateBag(route.params.id, payload)
@@ -120,7 +135,7 @@ function handleImageChange(event) {
   }
 
   // Resize and compress image
-  resizeImage(file, 512, 0.7)
+  resizeImage(file)
     .then((resizedDataUrl) => {
       bag.imageFile = file // Keep original file ref if needed, but data is what matters
       bag.imageName = file.name
@@ -167,12 +182,13 @@ function resizeDataURL(dataUrl, maxWidth, quality, outputType = 'image/jpeg') {
   })
 }
 
-function resizeImage(file, maxWidth, quality) {
+function resizeImage(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = (e) => {
-      const type = file.type === 'image/png' ? 'image/png' : 'image/jpeg'
-      resizeDataURL(e.target.result, maxWidth, quality, type)
+      // Force JPEG for compression, ignoring transparency to ensure upload success
+      const type = 'image/jpeg'
+      resizeDataURL(e.target.result, 300, 0.7, type) // Reduced max width to 300
         .then(resolve)
         .catch(reject)
     }
@@ -211,7 +227,7 @@ async function loadBag(id) {
           ? bagData.keyFlavours.join(', ')
           : (bagData.keyFlavours || '')
         // Load existing image if any
-        if (bagData.image) {
+        if (bagData.image && bagData.image !== bagData.snapshot) {
            bag.imageData = bagData.image
            // We don't have the original file object or name, but that's okay for preview/saving
            bag.imageName = 'Existing Image'

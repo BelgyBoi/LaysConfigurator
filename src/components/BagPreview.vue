@@ -1038,13 +1038,16 @@ defineExpose({
 // --- 9) Public API for Snapshot ---
 // We need to render synchronously to capture the buffer
 function getSnapshot() {
-  if (!renderer || !scene || !camera) return null
+  if (!renderer || !scene || !camera) {
+      console.error("getSnapshot: Missing THREE.js instances", { renderer: !!renderer, scene: !!scene, camera: !!camera });
+      return null
+  }
 
   // Render one frame to ensure buffer is populated if using preserveDrawingBuffer
   renderer.render(scene, camera)
 
   // Create a smaller canvas for the snapshot
-  const maxDimension = 600 // Reasonable size for feed/mobile
+  const maxDimension = 100 // Aggressively reduced to 100px (thumbnail only)
   const originalCanvas = renderer.domElement
 
   const aspect = originalCanvas.width / originalCanvas.height
@@ -1070,9 +1073,9 @@ function getSnapshot() {
   // Draw the 3D canvas onto the temp canvas
   ctx.drawImage(originalCanvas, 0, 0, width, height)
 
-  // Capture as JPEG with compression (0.8 quality)
+  // Capture as JPEG with compression (0.4 quality)
   // JPEG is much smaller than PNG for complex 3D scenes
-  return tempCanvas.toDataURL('image/jpeg', 0.8)
+  return tempCanvas.toDataURL('image/jpeg', 0.4)
 }
 
 

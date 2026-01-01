@@ -177,7 +177,7 @@ onMounted(() => {
                       :packaging="bag.packaging"
                       :name="bag.name"
                       :font="bag.font"
-                      :image="bag.image"
+                      :image="(bag.snapshot && bag.image === bag.snapshot) ? '' : bag.image"
                       :read-only="true"
                       :auto-rotate="false"
                       :show-background="false"
