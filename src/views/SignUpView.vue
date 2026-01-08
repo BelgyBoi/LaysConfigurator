@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { register } from '../services/authService';
+import { register, login } from '../services/authService';
 
 const firstName = ref('');
 const lastName = ref('');
@@ -74,7 +74,11 @@ const handleRegister = async () => {
       email: email.value,
       password: password.value
     });
-    // On success, redirect to login (or home with auto-login)
+
+    // Auto-login after registration
+    await login(email.value, password.value);
+
+    // On success, redirect to home
     router.push({ name: 'configurator' });
   } catch (err) {
     error.value = err.message;
@@ -223,7 +227,7 @@ const handleRegister = async () => {
       </form>
 
       <div class="auth-footer">
-        <p>Already have an account? <router-link to="/signin">Sign In</router-link></p>
+        <p>Already have an account? <router-link :to="{ name: 'signin' }">Sign In</router-link></p>
       </div>
     </div>
   </div>

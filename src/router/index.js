@@ -31,6 +31,10 @@ const router = createRouter({
       component: FeedView,
       meta: { requiresAuth: true },
     },
+    {
+      path: '/:pathMatch(.*)*',
+      redirect: { name: 'signin' }
+    }
   ],
 })
 
