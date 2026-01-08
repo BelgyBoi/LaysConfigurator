@@ -450,7 +450,7 @@ function handleBagSelect(selectedBag) {
 .config-form {
   position: fixed;
   right: 60px;
-  top: calc(var(--nav-height) + 60px);
+  top: calc(var(--nav-height) + 20px);
   flex: 1 1 60%;
   background: #f7f8fa;
   border: 1px solid #e2e6eb;
@@ -626,7 +626,6 @@ function handleBagSelect(selectedBag) {
 
 .button--full {
   width: 100%;
-  margin-bottom: 12px;
   background: #f1f2f4;
   border-color: #d6dbe2;
   color: #1f1f1f;

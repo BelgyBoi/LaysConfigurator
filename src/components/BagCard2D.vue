@@ -80,7 +80,6 @@ const fontClass = computed(() => {
   position: relative;
   border-radius: 10px;
   clip-path: path("M 10 5 Q 50 0 90 5 L 95 15 L 100 90 Q 50 100 0 90 L 5 15 L 10 5 Z"); /* Simple Bag Shape Approximation */
-  /* Better clip-path for a chips bag */
   clip-path: polygon(
     5% 0%, 95% 0%,
     100% 10%, 98% 90%,
