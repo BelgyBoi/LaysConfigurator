@@ -2,8 +2,7 @@
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-// OrbitControls removed
-import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js'
+import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js'
 
 const props = defineProps({
   color: {
@@ -261,7 +260,7 @@ onMounted(() => {
   )
 
   // ---- 7) Load the Environment (using RGBELoader for .hdr format) ----
-  new RGBELoader().load(
+  new HDRLoader().load(
     '/textrures/neon_photostudio_2k.hdr', // Note: using folder name 'textrures' as created
     (texture) => {
       texture.mapping = THREE.EquirectangularReflectionMapping
@@ -967,9 +966,6 @@ async function updateBagAppearance() {
   }
 
   drawLabel(ctx, props.name, props.font, width, height, props.labelPosition, props.color)
-
-
-
 
   const texture = new THREE.CanvasTexture(canvas)
   texture.colorSpace = THREE.SRGBColorSpace
