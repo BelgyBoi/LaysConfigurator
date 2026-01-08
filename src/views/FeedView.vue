@@ -202,64 +202,68 @@ onUnmounted(() => {
               :key="bag._id"
               class="shelf-item"
             >
-               <div class="shelf-bag-preview">
-                  <BagPreview
-                      :color="bag.bagColor"
-                      :pattern="bag.pattern"
-                      :packaging="bag.packaging"
-                      :name="bag.name"
-                      :font="bag.font"
-                      :image="(bag.snapshot && bag.image === bag.snapshot) ? '' : bag.image"
-                      :read-only="true"
-                      :auto-rotate="false"
-                      :show-background="false"
-                      content-mode="shelf"
-                  />
-                  <!-- Overlay for actions -->
-                  <div class="shelf-overlay">
-                     <!-- Edit button removed per request -->
-                  </div>
-               </div>
-               <div class="shelf-info">
-                  <div class="info-block">
-                    <span class="info-header">FLAVOR NAME</span>
-                    <h3 class="bag-title">{{ bag.name }}</h3>
-                  </div>
+                <!-- 1. Name of the bag at the top -->
+                <div class="card-top-section">
+                   <h3 class="bag-title">{{ bag.name }}</h3>
+                </div>
 
-                  <div class="info-block" v-if="bag.keyFlavours && bag.keyFlavours.length">
-                    <span class="info-header">TASTING NOTES</span>
-                    <div class="flavor-pills-container">
-                        <span
-                            class="flavor-pill"
-                            v-for="(flavor, idx) in (Array.isArray(bag.keyFlavours) ? bag.keyFlavours : [])"
-                            :key="idx"
-                        >
-                            {{ flavor }}
-                        </span>
-                         <!-- Fallback for string -->
-                        <span v-if="!Array.isArray(bag.keyFlavours)" class="flavor-pill">
-                            {{ bag.keyFlavours }}
-                        </span>
-                    </div>
-                  </div>
+                <!-- 2. Bag Preview -->
+                <div class="shelf-bag-preview">
+                   <BagPreview
+                       :color="bag.bagColor"
+                       :pattern="bag.pattern"
+                       :packaging="bag.packaging"
+                       :name="bag.name"
+                       :font="bag.font"
+                       :image="(bag.snapshot && bag.image === bag.snapshot) ? '' : bag.image"
+                       :read-only="true"
+                       :auto-rotate="false"
+                       :show-background="false"
+                       content-mode="shelf"
+                   />
+                </div>
 
-                  <div class="info-block chef-block">
-                     <span class="info-header">CHEF</span>
-                     <p class="creator-name">{{ bag.creatorName }}</p>
-                  </div>
-               </div>
+                <div class="shelf-info">
+                   <div class="info-block">
+                     <!-- 3. Creator Name (No Header, just name) -->
+                     <h4 class="creator-name">{{ bag.creatorName }}</h4>
+                   </div>
 
-               <div class="card-footer">
-                  <button
-                    class="vote-action-btn"
-                    :class="{ voted: bag.hasVoted }"
-                    @click.stop="handleVote(bag)"
-                  >
-                     <span class="icon">{{ bag.hasVoted ? '❤️' : '🤍' }}</span>
-                     <span class="text">{{ bag.hasVoted ? 'VOTED' : 'VOTE THIS' }}</span>
-                     <span class="count">{{ bag.votes || 0 }}</span>
-                  </button>
-               </div>
+                   <!-- 4. Key Flavours (Pills with scrollbar) -->
+                   <div class="info-block" v-if="bag.keyFlavours && bag.keyFlavours.length">
+                     <div class="flavor-pills-container">
+                         <span
+                             class="flavor-pill"
+                             v-for="(flavor, idx) in (Array.isArray(bag.keyFlavours) ? bag.keyFlavours : [])"
+                             :key="idx"
+                         >
+                             {{ flavor }}
+                         </span>
+                         <span v-if="!Array.isArray(bag.keyFlavours)" class="flavor-pill">
+                             {{ bag.keyFlavours }}
+                         </span>
+                     </div>
+                   </div>
+
+                   <!-- 5. Inspiration (Header + Box) -->
+                   <div class="inspiration-box" v-if="bag.inspiration">
+                       <span class="box-header">INSPIRATION</span>
+                       <div class="inspiration-content">{{ bag.inspiration }}</div>
+                   </div>
+                </div>
+
+                <!-- 6. Vote Button -->
+                <div class="card-footer">
+                   <button
+                     class="vote-action-btn"
+                     :class="{ voted: bag.hasVoted }"
+                     @click.stop="handleVote(bag)"
+                   >
+                      <span class="icon">{{ bag.hasVoted ? '❤️' : '🤍' }}</span>
+                      <span class="text">{{ bag.hasVoted ? 'VOTED' : 'VOTE THIS' }}</span>
+                      <span class="count">{{ bag.votes || 0 }}</span>
+                   </button>
+                </div>
             </div>
          </div>
 
@@ -338,8 +342,7 @@ onUnmounted(() => {
 .shelf-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 30px;
-  margin-bottom: 20px;
+  gap: 1rem;
   min-height: 500px;
 }
 
@@ -363,7 +366,7 @@ onUnmounted(() => {
   box-shadow: 0 10px 25px rgba(0,0,0,0.05); /* Soft card shadow */
   transition: transform 0.3s;
   height: 100%; /* Fill grid cell */
-  padding-bottom: 16px; /* Padding for bottom button */
+  padding-bottom: .5rem; /* Padding for bottom button */
   overflow: hidden;
 }
 
@@ -380,8 +383,7 @@ onUnmounted(() => {
       #f8e503 0deg 10deg,
       #ffdd00 10deg 20deg
     );
-  /* Border radius only on top now since it's a card */
-  border-radius: 20px 20px 0 0;
+  border-radius: 0;
   position: relative;
   overflow: hidden;
 }
@@ -426,15 +428,15 @@ onUnmounted(() => {
   flex: 1; /* Pushes footer down */
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 20px 24px 0 24px;
+  gap: .5rem;
+  padding: 1rem;
   text-align: left;
 }
 
 .info-block {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: .5rem;
 }
 
 .info-header {
@@ -447,17 +449,15 @@ onUnmounted(() => {
 
 .bag-title {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.8rem;
   font-weight: 800;
   color: #1a1a1a;
   line-height: 1.1;
-  /* Limit to 2 lines for title consistency */
   display: -webkit-box;
   -webkit-line-clamp: 2;
-  line-clamp: 2; /* Standard property */
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  height: 3.3rem; /* approx 2 lines */
 }
 
 /* Flavor Pills */
@@ -465,15 +465,28 @@ onUnmounted(() => {
     display: flex;
     overflow-x: auto;
     gap: 8px;
-    padding-bottom: 4px; /* Space for scrollbar if any */
-    /* Hide scrollbar for cleaner look */
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-    height: 36px; /* Fixed height for pills row */
-    align-items: center;
+    padding-bottom: 4px; /* Space for scrollbar */
+    scrollbar-width: thin; /* Firefox */
+    height: 48px; /* Fixed height to prevent shift */
+    align-items: center; /* Center vertically if space permits, or flex-start? If center, scrollbar might cover. Let's try center but with sufficient height */
+    /* Actually flex-start is safer to keep them top-aligned */
+    align-items: flex-start;
+    padding-top: 4px; /* Center visual */
 }
+/* Custom Scrollbar for pills */
 .flavor-pills-container::-webkit-scrollbar {
-    display: none;
+    height: 6px;
+}
+.flavor-pills-container::-webkit-scrollbar-track {
+   background: #f0f0f0;
+   border-radius: 3px;
+}
+.flavor-pills-container::-webkit-scrollbar-thumb {
+   background: #d1d1d1;
+   border-radius: 3px;
+}
+.flavor-pills-container::-webkit-scrollbar-thumb:hover {
+   background: #bbb;
 }
 
 .flavor-pill {
@@ -489,9 +502,8 @@ onUnmounted(() => {
 
 .creator-name {
   margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: #444;
+  font-size: 1.1rem;
+  font-weight: 700;
 }
 
 .chef-block {
@@ -500,7 +512,7 @@ onUnmounted(() => {
 
 /* Card Footer with Button */
 .card-footer {
-    padding: 20px 24px;
+    padding: 0 1rem 1rem;
     margin-top: auto;
 }
 
@@ -656,4 +668,56 @@ onUnmounted(() => {
   text-decoration: none;
   display: inline-block;
 }
+
+.inspiration-box {
+  background: #f8f9fa;
+  border: 1px solid #eee;
+  border-radius: 12px;
+  padding: 12px;
+  /* Fixed height + no auto margin */
+  height: 150px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.box-header {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #aaa;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.inspiration-content {
+  font-size: 0.9rem;
+  color: #444;
+  line-height: 1.4;
+  flex: 1; /* Fill the box */
+  overflow-y: auto;
+  white-space: pre-wrap;
+  padding-right: 4px;
+}
+
+.inspiration-content::-webkit-scrollbar {
+  width: 4px;
+}
+.inspiration-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+.inspiration-content::-webkit-scrollbar-thumb {
+  background: #ddd;
+  border-radius: 2px;
+}
+.inspiration-content::-webkit-scrollbar-thumb:hover {
+  background: #ccc;
+}
+
+/* Card Top Section (New) */
+.card-top-section {
+    padding: 16px 20px;
+    background: white;
+}
+
 </style>
